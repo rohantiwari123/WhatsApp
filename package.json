@@ -1,0 +1,21 @@
+{
+  "name": "nodejs-sandbox",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "start": "node --watch index.js"
+  },
+  "keywords": [],
+  "author": "Ives van Hoorne",
+  "license": "MIT",
+  "dependencies": {
+    "@tavily/core": "^0.7.3",
+    "@whiskeysockets/baileys": "^7.0.0-rc10",
+    "dotenv": "^17.4.2",
+    "groq-sdk": "^1.2.0",
+    "node-cron": "^4.2.1",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

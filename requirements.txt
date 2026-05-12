@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+groq
+langchain
+langchain-groq
+langchain-core
+langchain-community
+langchain-classic
+tavily-python
+beautifulsoup4
+yt-dlp
+python-dotenv
