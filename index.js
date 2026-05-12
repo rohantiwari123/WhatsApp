@@ -10,6 +10,13 @@ import cron from "node-cron";
 import { tavily } from "@tavily/core";
 import fs from "fs";
 
+import express from "express";
+const app = express();
+const port = process.env.PORT || 3000;
+
+app.get("/", (req, res) => res.send("Beyond the Verse AI is Live!"));
+app.listen(port, () => console.log(`🌐 Server running on port ${port}`));
+
 // ----------------------------------------------------
 // 🧠 1. PERSISTENT MEMORY SYSTEM (SAVES SESSIONS TO DISK)
 // ----------------------------------------------------
