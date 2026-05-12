@@ -1,1 +1,5 @@
 node_modules
+.env
+venv/
+auth_info_baileys/
+user_sessions.json
