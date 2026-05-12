@@ -3,3 +3,4 @@ node_modules
 venv/
 auth_info_baileys/
 user_sessions.json
+
