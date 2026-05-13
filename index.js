@@ -812,4 +812,3 @@ process.on("unhandledRejection", (reason, promise) => {
 });
 
 connectToWhatsApp();
-ectToWhatsApp();
