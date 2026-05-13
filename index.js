@@ -274,20 +274,31 @@ async function connectToWhatsApp() {
 
     if (connection === "close") {
         isConnecting = false;
+        sock.pairingRequested = false; // Reset pairing state
+        if (pairingTimeout) {
+            clearTimeout(pairingTimeout);
+            pairingTimeout = null;
+        }
+
       const statusCode = lastDisconnect.error?.output?.statusCode;
       const isLoggedOut = statusCode === DisconnectReason.loggedOut || statusCode === 401;
       
-      console.log(`🔄 Connection closed (status: ${statusCode}), reconnecting: true`);
+      console.log(`🔄 Connection closed (status: ${statusCode}), reconnecting...`);
       
       if (isLoggedOut) {
-        console.log("🧹 Session Logged Out or Unauthorized (401). Clearing MongoDB session...");
+        console.log("🧹 Session Unauthorized (401). Clearing MongoDB session...");
         await authCollection.deleteMany({});
-        console.log("✅ Session cleared.");
+        console.log("✅ Session cleared. Bot will restart fresh.");
       }
       
       setTimeout(() => connectToWhatsApp(), 5000);
     } else if (connection === "open") {
         isConnecting = false;
+        sock.pairingRequested = false;
+        if (pairingTimeout) {
+            clearTimeout(pairingTimeout);
+            pairingTimeout = null;
+        }
       console.log("✅ Beyond the Verse AI CodeSandbox पर लाइव है!");
       console.log(`🤖 Bot ID: ${sock.user.id}`);
     }
