@@ -208,7 +208,7 @@ async function connectToWhatsApp() {
     auth: state,
     printQRInTerminal: false,
     logger: pino({ level: "silent" }),
-    browser: Browsers.macOS('Safari'),
+    browser: ["Ubuntu", "Chrome", "20.0.04"],
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 0,
     keepAliveIntervalMs: 10000,
@@ -228,10 +228,10 @@ async function connectToWhatsApp() {
 
     phoneNumber = phoneNumber.replace(/[^0-9]/g, "");
     if (!phoneNumber.startsWith("91") && phoneNumber.length === 10) {
-      phoneNumber = "91" + phoneNumber;
+        phoneNumber = "91" + phoneNumber;
     }
 
-    console.log(`\n📲 Target Phone Number: ${phoneNumber}`);
+    console.log(`\n📲 BOT IS REQUESTING CODE FOR: +${phoneNumber}`);
     
     const requestPairingCodeWithRetry = async () => {
         if (sock.authState.creds.registered || sock.pairingRequested) return;
