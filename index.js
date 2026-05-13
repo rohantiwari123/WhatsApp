@@ -195,7 +195,7 @@ async function connectToWhatsApp() {
     auth: state,
     printQRInTerminal: false,
     logger: pino({ level: "warn" }),
-    browser: ["Ubuntu", "Chrome", "20.0.04"],
+    browser: ["Beyond the Verse", "Chrome", "1.0.0"],
   });
 
   sock.ev.on("creds.update", saveCreds);
@@ -210,34 +210,32 @@ async function connectToWhatsApp() {
     }
 
     if (phoneNumber) {
-      // Robust cleaning: remove all non-digits and leading zeros/plus
       phoneNumber = phoneNumber.replace(/[^0-9]/g, "");
-      
       if (!phoneNumber.startsWith("91") && phoneNumber.length === 10) {
-        console.log("⚠️ Warning: 10-digit number detected without country code. Adding '91' prefix (India).");
         phoneNumber = "91" + phoneNumber;
       }
 
       console.log(`\n📲 Attempting to pair with: ${phoneNumber}`);
-      console.log("👉 Please ensure this is the EXACT number you are using on your WhatsApp app.");
       
-      try {
-          // Increase delay slightly for socket stability
-          await new Promise(resolve => setTimeout(resolve, 6000));
-          console.log("📡 Requesting pairing code from WhatsApp...");
-          let code = await sock.requestPairingCode(phoneNumber);
-          code = code?.match(/.{1,4}/g)?.join("-") || code;
-          console.log("\n" + "=".repeat(30));
-          console.log(`✅ YOUR PAIRING CODE: ${code}`);
-          console.log("=".repeat(30));
-          console.log("1. Open WhatsApp on your phone.");
-          console.log("2. Go to Settings > Linked Devices > Link a Device.");
-          console.log("3. Tap 'Link with phone number instead'.");
-          console.log(`4. Enter the code: ${code}\n`);
-      } catch (error) {
-          console.error("❌ Failed to generate pairing code:", error.message);
-          console.log("💡 Tip: Ensure your PHONE_NUMBER is correct and try again.");
-      }
+      setTimeout(async () => {
+          try {
+              console.log("📡 Requesting pairing code from WhatsApp...");
+              let code = await sock.requestPairingCode(phoneNumber);
+              code = code?.match(/.{1,4}/g)?.join("-") || code;
+              console.log("\n" + "=".repeat(30));
+              console.log(`✅ YOUR PAIRING CODE: ${code}`);
+              console.log("=".repeat(30));
+              console.log("1. Open WhatsApp on your phone.");
+              console.log("2. Go to Settings > Linked Devices > Link a Device.");
+              console.log("3. Tap 'Link with phone number instead'.");
+              console.log(`4. Enter the code: ${code}\n`);
+          } catch (error) {
+              console.error("❌ Failed to generate pairing code:", error.message);
+              if (error.message.includes("Closed")) {
+                  console.log("🔄 Connection closed during request. The bot will automatically retry...");
+              }
+          }
+      }, 5000); 
     }
   }
 
