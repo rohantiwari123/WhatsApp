@@ -21,9 +21,9 @@ COPY . .
 # Create downloads folder for YT service
 RUN mkdir -p downloads
 
-# Expose ports (FastAPI on 8000, Node on 10000)
-EXPOSE 8000
+# Expose ports (FastAPI on 8080, Node on 10000)
+EXPOSE 8080
 EXPOSE 10000
 
 # Start both services using concurrently
-CMD ["npx", "concurrently", "\"python3 -m uvicorn ai_service:app --host 0.0.0.0 --port 8000\"", "\"node index.js\""]
+CMD ["npx", "concurrently", "\"python3 -m uvicorn ai_service:app --host 0.0.0.0 --port 8080\"", "\"node index.js\""]

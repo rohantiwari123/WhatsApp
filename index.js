@@ -39,6 +39,23 @@ const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 const SESSION_FILE = "./user_sessions.json";
 let userSessions = new Map();
 
+// Wait for Python Backend to be ready
+async function waitForBackend() {
+  console.log("⏳ Waiting for Python AI Core to start on port 8080...");
+  let ready = false;
+  while (!ready) {
+    try {
+      const response = await fetch("http://localhost:8080/health");
+      if (response.ok) {
+        ready = true;
+        console.log("✅ Python AI Core is online and ready!");
+      }
+    } catch (e) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+  }
+}
+
 // Helper for fetch with timeout
 async function fetchWithTimeout(url, options = {}, timeout = 60000) {
   const controller = new AbortController();
@@ -519,7 +536,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         );
 
         try {
-          const response = await fetchWithTimeout("http://localhost:8000/youtube", {
+          const response = await fetchWithTimeout("http://localhost:8080/youtube", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url }),
@@ -599,7 +616,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         if (!query) return;
 
         try {
-          const response = await fetchWithTimeout("http://localhost:8000/research", {
+          const response = await fetchWithTimeout("http://localhost:8080/research", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ query }),
@@ -639,7 +656,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         if (!url) return;
 
         try {
-          const response = await fetchWithTimeout("http://localhost:8000/summarize", {
+          const response = await fetchWithTimeout("http://localhost:8080/summarize", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url }),
@@ -701,7 +718,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
               .trim() ||
             "What is in this image? Explain beautifully and deeply like a Beyond the Verse guide.";
 
-          const response = await fetchWithTimeout("http://localhost:8000/vision", {
+          const response = await fetchWithTimeout("http://localhost:8080/vision", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ user_id: senderId, prompt, base64_image: base64Image }),
@@ -737,7 +754,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       const cleanHistory = history.filter((msg) => msg.role !== "system");
 
       try {
-        const response = await fetchWithTimeout("http://localhost:8000/chat", {
+        const response = await fetchWithTimeout("http://localhost:8080/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -811,4 +828,8 @@ process.on("unhandledRejection", (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason);
 });
 
-connectToWhatsApp();
+// Start the bot after backend is ready
+(async () => {
+  await waitForBackend();
+  connectToWhatsApp();
+})();

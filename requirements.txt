@@ -10,3 +10,4 @@ tavily-python
 beautifulsoup4
 yt-dlp
 python-dotenv
+requests

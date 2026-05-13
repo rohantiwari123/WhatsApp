@@ -5,7 +5,8 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "start": "concurrently \"./venv/bin/uvicorn ai_service:app --host 0.0.0.0 --port 8000 --reload\" \"node index.js\""
+    "start": "concurrently \"./venv/bin/uvicorn ai_service:app --host 0.0.0.0 --port 8080\" \"node index.js\"",
+    "postinstall": "python3 -m venv venv && ./venv/bin/pip install -r requirements.txt"
   },
   "keywords": [],
   "author": "Ives van Hoorne",

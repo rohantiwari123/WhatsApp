@@ -15,6 +15,9 @@ load_dotenv()
 
 app = FastAPI(title="Beyond the Verse AI Core")
 
+# Ensure downloads directory exists
+os.makedirs("downloads", exist_ok=True)
+
 groq_api_key = os.getenv("GROQ_API_KEY")
 tavily_api_key = os.getenv("TAVILY_API_KEY")
 
@@ -111,6 +114,10 @@ RESPONSE STRUCTURE & BEHAVIOR:
 4. No Business Talk: Never mention products, pricing, or sales. strictly act as a knowledge guide.
 5. Language: Always mirror the user's language (reply in pure Hindi, Hinglish, or English depending on how they ask).
 6. Technical Issues: If the user mentions a technical problem or says "fix it", acknowledge it briefly (e.g., "The issue has been resolved") and steer the conversation back to your core topics (science, philosophy). Do not give troubleshooting advice."""
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
 
 @app.post("/chat")
 async def process_chat(request: ChatRequest):
@@ -232,4 +239,4 @@ async def process_youtube(request: YouTubeRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=8080)
