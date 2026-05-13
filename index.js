@@ -7,6 +7,7 @@ import makeWASocket, {
   BufferJSON,
   initAuthCreds,
   proto,
+  Browsers,
 } from "@whiskeysockets/baileys";
 import Groq from "groq-sdk";
 import qrcode from "qrcode-terminal";
@@ -111,7 +112,19 @@ const mongoClient = new MongoClient(process.env.MONGODB_URI);
 await mongoClient.connect();
 const authCollection = mongoClient.db("whatsapp_bot").collection("auth_session");
 
+let isConnecting = false;
+let pairingTimeout = null;
+
 async function connectToWhatsApp() {
+    if (isConnecting) return;
+    isConnecting = true;
+
+    // Clear any existing pairing timeout
+    if (pairingTimeout) {
+        clearTimeout(pairingTimeout);
+        pairingTimeout = null;
+    }
+
     // === MONGODB AUTH SETUP START ===
     console.log("⏳ WhatsApp से कनेक्ट हो रहा है (MongoDB Auth)...");
 
@@ -194,8 +207,11 @@ async function connectToWhatsApp() {
   const sock = makeWASocket({
     auth: state,
     printQRInTerminal: false,
-    logger: pino({ level: "warn" }),
-    browser: ["macOS", "Chrome", "121.0.6167.184"],
+    logger: pino({ level: "silent" }),
+    browser: Browsers.macOS('Safari'),
+    connectTimeoutMs: 60000,
+    defaultQueryTimeoutMs: 0,
+    keepAliveIntervalMs: 10000,
   });
 
   sock.ev.on("creds.update", saveCreds);
@@ -205,72 +221,73 @@ async function connectToWhatsApp() {
     let phoneNumber = process.env.PHONE_NUMBER;
     
     if (!phoneNumber) {
-      console.log("\n📲 No PHONE_NUMBER found in .env");
-      phoneNumber = await question("Please enter your phone number with country code (e.g., 91XXXXXXXXXX): ");
+      console.error("\n❌ ERROR: PHONE_NUMBER is missing in environment variables!");
+      console.error("Please add PHONE_NUMBER (e.g., 91XXXXXXXXXX) to your Render.com Environment Variables.");
+      return; 
     }
 
-    if (phoneNumber) {
-      phoneNumber = phoneNumber.replace(/[^0-9]/g, "");
-      if (!phoneNumber.startsWith("91") && phoneNumber.length === 10) {
-        phoneNumber = "91" + phoneNumber;
-      }
-
-      console.log(`\n📲 Attempting to pair with: ${phoneNumber}`);
-      
-      const requestPairingCodeWithRetry = async () => {
-          if (sock.authState.creds.registered) return;
-          
-          try {
-              // Wait for socket to be somewhat stable
-              await new Promise(resolve => setTimeout(resolve, 5000));
-              
-              if (sock.connectionState === 'close') {
-                  console.log("🔄 Socket closed, waiting for next reconnection attempt...");
-                  return;
-              }
-
-              console.log("📡 Requesting pairing code from WhatsApp...");
-              let code = await sock.requestPairingCode(phoneNumber);
-              code = code?.match(/.{1,4}/g)?.join("-") || code;
-              console.log("\n" + "=".repeat(30));
-              console.log(`✅ YOUR PAIRING CODE: ${code}`);
-              console.log("=".repeat(30));
-              console.log("1. Open WhatsApp on your phone.");
-              console.log("2. Go to Settings > Linked Devices > Link a Device.");
-              console.log("3. Tap 'Link with phone number instead'.");
-              console.log(`4. Enter the code: ${code}\n`);
-          } catch (error) {
-              console.error("❌ Failed to generate pairing code:", error.message);
-              // Retry if it was a connection issue
-              if (error.message.includes("Closed") || error.message.includes("Timed out")) {
-                  console.log("🔄 Retrying pairing code request in 8 seconds...");
-                  setTimeout(requestPairingCodeWithRetry, 8000);
-              }
-          }
-      };
-
-      requestPairingCodeWithRetry();
+    phoneNumber = phoneNumber.replace(/[^0-9]/g, "");
+    if (!phoneNumber.startsWith("91") && phoneNumber.length === 10) {
+      phoneNumber = "91" + phoneNumber;
     }
+
+    console.log(`\n📲 Target Phone Number: ${phoneNumber}`);
+    
+    const requestPairingCodeWithRetry = async () => {
+        if (sock.authState.creds.registered || sock.pairingRequested) return;
+        sock.pairingRequested = true;
+        
+        try {
+            console.log("⏳ [1/3] Initializing secure connection...");
+            await new Promise(resolve => setTimeout(resolve, 5000));
+            
+            console.log("⏳ [2/3] Synchronizing with WhatsApp (10s delay for stability)...");
+            await new Promise(resolve => {
+                pairingTimeout = setTimeout(resolve, 10000);
+            });
+
+            if (sock.authState.creds.registered) return;
+            
+            console.log("📡 [3/3] Requesting pairing code from WhatsApp servers...");
+            let code = await sock.requestPairingCode(phoneNumber);
+            code = code?.match(/.{1,4}/g)?.join("-") || code;
+            
+            console.log("\n" + "⭐".repeat(20));
+            console.log(`✅ YOUR RENDER PAIRING CODE: ${code}`);
+            console.log("⭐".repeat(20) + "\n");
+            console.log("1. Open WhatsApp > Linked Devices > Link a Device.");
+            console.log("2. Select 'Link with phone number instead'.");
+            console.log(`3. Enter: ${code}\n`);
+        } catch (error) {
+            console.error("❌ Pairing Request Failed:", error.message);
+            sock.pairingRequested = false;
+            console.log("🔄 Retrying in 15 seconds...");
+            pairingTimeout = setTimeout(requestPairingCodeWithRetry, 15000);
+        }
+    };
+
+    requestPairingCodeWithRetry();
   }
 
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect } = update;
 
     if (connection === "close") {
+        isConnecting = false;
       const statusCode = lastDisconnect.error?.output?.statusCode;
-      const isLoggedOut = statusCode === DisconnectReason.loggedOut;
+      const isLoggedOut = statusCode === DisconnectReason.loggedOut || statusCode === 401;
       
       console.log(`🔄 Connection closed (status: ${statusCode}), reconnecting: true`);
       
-      // Only clear session if we were actually registered and now got logged out
-      if (isLoggedOut && sock.authState.creds.registered) {
-        console.log("🧹 Session Logged Out. Clearing MongoDB session...");
+      if (isLoggedOut) {
+        console.log("🧹 Session Logged Out or Unauthorized (401). Clearing MongoDB session...");
         await authCollection.deleteMany({});
-        console.log("✅ Session cleared. Bot will now retry with a fresh state.");
+        console.log("✅ Session cleared.");
       }
       
       setTimeout(() => connectToWhatsApp(), 5000);
     } else if (connection === "open") {
+        isConnecting = false;
       console.log("✅ Beyond the Verse AI CodeSandbox पर लाइव है!");
       console.log(`🤖 Bot ID: ${sock.user.id}`);
     }
