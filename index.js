@@ -4,6 +4,8 @@ import pino from "pino";
 import makeWASocket, {
   DisconnectReason,
   downloadMediaMessage,
+  BufferJSON,
+  initAuthCreds,
 } from "@whiskeysockets/baileys";
 import Groq from "groq-sdk";
 import qrcode from "qrcode-terminal";
@@ -114,7 +116,6 @@ async function connectToWhatsApp() {
     const collection = mongoClient.db("whatsapp_bot").collection("auth_session");
 
     // Custom MongoDB Adapter for Baileys
-    const { BufferJSON, initAuthCreds } = (await import('@whiskeysockets/baileys')).default || await import('@whiskeysockets/baileys');
 
     const writeData = (data, id) => {
         return collection.replaceOne({ _id: id }, JSON.parse(JSON.stringify(data, BufferJSON.replacer)), { upsert: true });
