@@ -11,3 +11,4 @@ beautifulsoup4
 yt-dlp
 python-dotenv
 requests
+gTTS

@@ -95,6 +95,15 @@ class SummarizeRequest(BaseModel):
 class YouTubeRequest(BaseModel):
     url: str
 
+class NewsRequest(BaseModel):
+    topic: str
+
+class QuizRequest(BaseModel):
+    topic: str
+
+class TTSRequest(BaseModel):
+    text: str
+
 system_instruction = """You are the official AI guide for 'Beyond the Verse'. Answer deep questions about science, the universe, consciousness, and existential philosophy.
   
 CRITICAL WHATSAPP FORMATTING RULES:
@@ -203,6 +212,47 @@ async def process_summarize(request: SummarizeRequest):
         return {"response": result.content}
     except Exception as e:
         print(f"Summarize Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/news")
+async def process_news(request: NewsRequest):
+    try:
+        if not agent_executor:
+            return {"response": "⚠️ News agent is not available right now."}
+        
+        agent_prompt = f"Fetch the latest news and updates about: '{request.topic}'. Summarize the top 3-5 key points concisely. Strictly follow WhatsApp formatting (*bold*, _italic_)."
+        
+        result = agent_executor.invoke({"input": agent_prompt})
+        return {"response": result["output"]}
+    except Exception as e:
+        print(f"News Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/quiz")
+async def process_quiz(request: QuizRequest):
+    try:
+        quiz_prompt = f"Create a short, interactive multiple-choice quiz (3 questions) about '{request.topic}'. Include the correct answers at the very end. Follow WhatsApp formatting (*bold*, _italic_)."
+        result = chat_model.invoke([HumanMessage(content=quiz_prompt)])
+        return {"response": result.content}
+    except Exception as e:
+        print(f"Quiz Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/tts")
+async def process_tts(request: TTSRequest):
+    try:
+        from gtts import gTTS
+        import uuid
+        
+        file_id = str(uuid.uuid4())
+        filename = f"downloads/{file_id}.mp3"
+        
+        tts = gTTS(text=request.text, lang='hi', slow=False) # Or 'en', but 'hi' handles both decently
+        tts.save(filename)
+        
+        return {"response": "Success", "path": filename}
+    except Exception as e:
+        print(f"TTS Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/youtube")

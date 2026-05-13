@@ -498,17 +498,20 @@ You must return ONLY a valid JSON object. Do not include markdown code blocks. F
 Welcome! I am your advanced AI companion. Here are the ways you can interact with me:
 
 *COMMANDS:*
-1.  */research [topic]* - Invokes an autonomous AI agent to conduct deep scientific and philosophical research on any topic.
+1.  */research [topic]* - Deep scientific/philosophical research.
 2.  */search [query]* - Quick web search and synthesis.
-3.  */imagine [prompt]* - Generates a high-quality AI image from your description.
-4.  */summarize [URL]* - Scrapes a webpage and provides a deep philosophical TL;DR.
-5.  */yt [YouTube URL]* - Downloads and sends a YouTube video directly.
-6.  */help* - Shows this guide.
+3.  */news [topic]* - Fetch the latest news and updates.
+4.  */quiz [topic]* - Generate an interactive 3-question quiz.
+5.  */tts [text]* - Convert text to a voice message (Speech).
+6.  */imagine [prompt]* - Generates a high-quality AI image.
+7.  */summarize [URL]* - Scrapes a webpage for a philosophical TL;DR.
+8.  */yt [YouTube URL]* - Downloads and sends a YouTube video directly.
+9.  */help* - Shows this guide.
 
 *FEATURES:*
-*   *Natural Chat:* Just talk to me! I have persistent memory and will remember our conversation.
-*   *Vision Analysis:* Send me any image (or reply to one) with a question. I can "see" and analyze what is in it.
-*   *Language:* I can speak in Hindi, Hinglish, and English.
+*   *Natural Chat:* Just talk to me! I have persistent memory.
+*   *Vision Analysis:* Send me any image with a question.
+*   *Language:* I speak Hindi, Hinglish, and English.
 
 *Note:* In groups, please mention me or reply to my message to get a response.`;
 
@@ -686,6 +689,123 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
           await sock.sendMessage(senderId, {
             react: { text: "❌", key: msg.key },
           });
+          return;
+        }
+      }
+
+      // 📰 COMMAND: /news (Fetch latest news via Python)
+      if (text.toLowerCase().startsWith("/news ")) {
+        const topic = text.slice(6).trim();
+        if (!topic) return;
+
+        try {
+          const response = await fetchWithTimeout("http://localhost:8080/news", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ topic }),
+          });
+
+          if (!response.ok) throw new Error("News Agent Error");
+
+          const data = await response.json();
+          await sock.sendMessage(
+            senderId,
+            { text: `📰 *Beyond the Verse: Latest News*\n\n${data.response}` },
+            { quoted: msg }
+          );
+          await sock.sendMessage(senderId, { react: { text: "📰", key: msg.key } });
+          return;
+        } catch (e) {
+          console.error(e);
+          await sock.sendMessage(
+            senderId,
+            { text: "⚠️ न्यूज़ एजेंट को खबर जुटाने में समस्या आ रही है।" },
+            { quoted: msg }
+          );
+          await sock.sendMessage(senderId, { react: { text: "❌", key: msg.key } });
+          return;
+        }
+      }
+
+      // ❓ COMMAND: /quiz (Generate interactive quiz via Python)
+      if (text.toLowerCase().startsWith("/quiz ")) {
+        const topic = text.slice(6).trim();
+        if (!topic) return;
+
+        try {
+          const response = await fetchWithTimeout("http://localhost:8080/quiz", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ topic }),
+          });
+
+          if (!response.ok) throw new Error("Quiz Generator Error");
+
+          const data = await response.json();
+          await sock.sendMessage(
+            senderId,
+            { text: `🎯 *Beyond the Verse: Quiz Time!*\n\n${data.response}` },
+            { quoted: msg }
+          );
+          await sock.sendMessage(senderId, { react: { text: "🎯", key: msg.key } });
+          return;
+        } catch (e) {
+          console.error(e);
+          await sock.sendMessage(
+            senderId,
+            { text: "⚠️ क्विज़ जनरेट करने में समस्या आ रही है।" },
+            { quoted: msg }
+          );
+          await sock.sendMessage(senderId, { react: { text: "❌", key: msg.key } });
+          return;
+        }
+      }
+
+      // 🎙️ COMMAND: /tts (Convert Text to Speech Voice Note via Python)
+      if (text.toLowerCase().startsWith("/tts ")) {
+        const ttsText = text.slice(5).trim();
+        if (!ttsText) return;
+
+        await sock.sendMessage(senderId, { react: { text: "⏳", key: msg.key } });
+
+        try {
+          const response = await fetchWithTimeout("http://localhost:8080/tts", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: ttsText }),
+          });
+
+          if (!response.ok) throw new Error("TTS Error");
+
+          const data = await response.json();
+          const audioPath = data.path;
+
+          if (fs.existsSync(audioPath)) {
+            await sock.sendMessage(
+              senderId,
+              {
+                audio: fs.readFileSync(audioPath),
+                mimetype: 'audio/mpeg',
+                ptt: true, // Send as a voice note
+              },
+              { quoted: msg }
+            );
+
+            // Clean up file after sending
+            fs.unlinkSync(audioPath);
+            await sock.sendMessage(senderId, { react: { text: "🎙️", key: msg.key } });
+          } else {
+            throw new Error("File not found after generation");
+          }
+          return;
+        } catch (e) {
+          console.error(e);
+          await sock.sendMessage(
+            senderId,
+            { text: "⚠️ वॉइस जनरेट करने में समस्या आ रही है।" },
+            { quoted: msg }
+          );
+          await sock.sendMessage(senderId, { react: { text: "❌", key: msg.key } });
           return;
         }
       }
