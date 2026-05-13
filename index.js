@@ -302,8 +302,12 @@ async function connectToWhatsApp() {
       
       console.log(`🔄 Connection closed (status: ${statusCode}), reconnecting...`);
       
+      if (lastDisconnect.error?.message?.includes("conflict")) {
+        console.warn("⚠️ Conflict Detected: Another instance of this bot is likely running elsewhere.");
+      }
+
       if (isLoggedOut) {
-        console.log("🧹 Session Unauthorized (401). Clearing MongoDB session...");
+        console.log("🧹 Session Unauthorized (401/LoggedOut). Clearing MongoDB session...");
         await authCollection.deleteMany({});
         console.log("✅ Session cleared. Bot will restart fresh.");
       }
@@ -506,7 +510,8 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 6.  */imagine [prompt]* - Generates a high-quality AI image.
 7.  */summarize [URL]* - Scrapes a webpage for a philosophical TL;DR.
 8.  */yt [YouTube URL]* - Downloads and sends a YouTube video directly.
-9.  */help* - Shows this guide.
+9.  */ping* - Check if the bot is alive.
+10. */help* - Shows this guide.
 
 *FEATURES:*
 *   *Natural Chat:* Just talk to me! I have persistent memory.
@@ -517,6 +522,13 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 
         await sock.sendMessage(senderId, { text: helpMessage }, { quoted: msg });
         await sock.sendMessage(senderId, { react: { text: "📖", key: msg.key } });
+        return;
+      }
+
+      // 🏓 COMMAND: /ping
+      if (text.toLowerCase() === "/ping") {
+        await sock.sendMessage(senderId, { text: "🏓 *Pong!* I am online and ready. ✨" }, { quoted: msg });
+        await sock.sendMessage(senderId, { react: { text: "⚡", key: msg.key } });
         return;
       }
 
