@@ -123,6 +123,14 @@
     {
       "role": "assistant",
       "content": "*Infinite Possibilities*\nHello. Let's explore some mind-bending concepts:\n* The multiverse: are there infinite parallel universes beyond our own?\n* The nature of space and time: is it fixed or flexible?\n* The human brain: can it be enhanced or upgraded?\n* The future of humanity: will we eventually merge with machines?\nWhich one of these ideas intrigues you, or do you have a different topic in mind? Let's dive into the unknown and see where the conversation takes us."
+    },
+    {
+      "role": "user",
+      "content": "hindi"
+    },
+    {
+      "role": "assistant",
+      "content": "*नमस्ते*\nनमस्ते, मैं आपका मार्गदर्शक हूँ। हम विज्ञान, ब्रह्मांड, चेतना और अस्तित्ववादी दर्शन के बारे में गहरे प्रश्नों पर चर्चा कर सकते हैं। कुछ विषय जिन पर हम चर्चा कर सकते हैं:\n* ब्रह्मांड की उत्पत्ति\n* चेतना और मन की प्रकृति\n* अस्तित्व का अर्थ और उद्देश्य\n* विज्ञान और प्रौद्योगिकी का भविष्य\nकृपया बताएं कि आपको कौन सा विषय रुचिकर लगता है, या आपके पास कोई अन्य विषय है।"
     }
   ]
 }

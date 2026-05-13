@@ -1,7 +1,7 @@
 import "dotenv/config";
+import { MongoClient } from 'mongodb';
 import pino from "pino";
 import makeWASocket, {
-  useMultiFileAuthState,
   DisconnectReason,
   downloadMediaMessage,
 } from "@whiskeysockets/baileys";
@@ -105,7 +105,61 @@ RESPONSE STRUCTURE & BEHAVIOR:
 // 🚀 3. MAIN WHATSAPP CONNECTION LOOP
 // ----------------------------------------------------
 async function connectToWhatsApp() {
-  const { state, saveCreds } = await useMultiFileAuthState("auth_info_baileys");
+    // === MONGODB AUTH SETUP START ===
+    console.log("⏳ MongoDB से कनेक्ट हो रहा है...");
+    const mongoClient = new MongoClient(process.env.MONGODB_URI);
+    await mongoClient.connect();
+    console.log("✅ MongoDB कनेक्ट हो गया!");
+
+    const collection = mongoClient.db("whatsapp_bot").collection("auth_session");
+
+    // Custom MongoDB Adapter for Baileys
+    const { BufferJSON, initAuthCreds } = (await import('@whiskeysockets/baileys')).default || await import('@whiskeysockets/baileys');
+
+    const writeData = (data, id) => {
+        return collection.replaceOne({ _id: id }, JSON.parse(JSON.stringify(data, BufferJSON.replacer)), { upsert: true });
+    };
+    const readData = async (id) => {
+        try {
+            const data = await collection.findOne({ _id: id });
+            return data ? JSON.parse(JSON.stringify(data), BufferJSON.reviver) : null;
+        } catch (error) {
+            return null;
+        }
+    };
+    const removeData = async (id) => {
+        try { await collection.deleteOne({ _id: id }); } catch (error) {}
+    };
+
+    const creds = (await readData('creds')) || initAuthCreds();
+
+    const state = {
+        creds,
+        keys: {
+            get: async (type, ids) => {
+                const data = {};
+                await Promise.all(ids.map(async (id) => {
+                    let value = await readData(`${type}-${id}`);
+                    data[id] = value;
+                }));
+                return data;
+            },
+            set: async (data) => {
+                const tasks = [];
+                for (const category in data) {
+                    for (const id in data[category]) {
+                        const value = data[category][id];
+                        const key = `${category}-${id}`;
+                        tasks.push(value ? writeData(value, key) : removeData(key));
+                    }
+                }
+                await Promise.all(tasks);
+            }
+        }
+    };
+
+    const saveCreds = () => writeData(state.creds, 'creds');
+    // === MONGODB AUTH SETUP END ===
 
   const sock = makeWASocket({
     auth: state,
