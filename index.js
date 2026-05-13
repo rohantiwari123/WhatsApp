@@ -229,6 +229,12 @@ async function connectToWhatsApp() {
       
       console.log(`Connection closed (status: ${statusCode}), reconnecting: ${shouldReconnect}`);
       
+      if (statusCode === DisconnectReason.loggedOut) {
+        console.log("❌ Session Logged Out. Clearing MongoDB session...");
+        await collection.deleteMany({});
+        console.log("✅ Session cleared. Please restart the bot to re-pair.");
+      }
+      
       if (shouldReconnect) {
         setTimeout(() => connectToWhatsApp(), 5000);
       }
