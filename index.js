@@ -132,7 +132,8 @@ async function connectToWhatsApp() {
     const readData = async (id) => {
         try {
             const data = await authCollection.findOne({ _id: id });
-            return data ? JSON.parse(data.value, BufferJSON.reviver) : null;
+            if (!data || !data.value) return null;
+            return JSON.parse(data.value, BufferJSON.reviver);
         } catch (error) {
             console.error(`❌ MongoDB Read Error (${id}):`, error.message);
             return null;
@@ -147,10 +148,14 @@ async function connectToWhatsApp() {
         }
     };
 
+    console.log("🔑 Authentication क्रेडेंशियल्स लोड हो रहे हैं...");
     let creds = await readData('creds');
     if (!creds) {
+        console.log("🆕 कोई पिछला सेशन नहीं मिला। नया क्रेडेंशियल्स जेनरेट हो रहा है...");
         creds = initAuthCreds();
         await writeData(creds, 'creds');
+    } else {
+        console.log("✅ पिछला सेशन MongoDB से सफलतापूर्वक लोड हुआ।");
     }
 
     const state = {
@@ -193,6 +198,8 @@ async function connectToWhatsApp() {
     browser: ["Ubuntu", "Chrome", "20.0.04"],
   });
 
+  sock.ev.on("creds.update", saveCreds);
+
   // --- Pairing Code Logic ---
   if (!sock.authState.creds.registered) {
     let phoneNumber = process.env.PHONE_NUMBER;
@@ -214,8 +221,10 @@ async function connectToWhatsApp() {
       console.log(`\n📲 Attempting to pair with: ${phoneNumber}`);
       console.log("👉 Please ensure this is the EXACT number you are using on your WhatsApp app.");
       
-      setTimeout(async () => {
-        try {
+      try {
+          // Wait slightly for socket to initialize
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          console.log("📡 Requesting pairing code from WhatsApp...");
           let code = await sock.requestPairingCode(phoneNumber);
           code = code?.match(/.{1,4}/g)?.join("-") || code;
           console.log("\n" + "=".repeat(30));
@@ -225,15 +234,12 @@ async function connectToWhatsApp() {
           console.log("2. Go to Settings > Linked Devices > Link a Device.");
           console.log("3. Tap 'Link with phone number instead'.");
           console.log(`4. Enter the code: ${code}\n`);
-        } catch (error) {
+      } catch (error) {
           console.error("❌ Failed to generate pairing code:", error.message);
-          console.log("💡 Tip: Try deleting the 'auth_info_baileys' folder and restarting.");
-        }
-      }, 5000); // Increased to 5s for stability
+          console.log("💡 Tip: Ensure your PHONE_NUMBER is correct and try again.");
+      }
     }
   }
-
-  sock.ev.on("creds.update", saveCreds);
 
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
