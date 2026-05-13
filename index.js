@@ -117,9 +117,10 @@ async function connectToWhatsApp() {
 
     const writeData = async (data, id) => {
         try {
+            const wrappedData = { value: JSON.parse(JSON.stringify(data, BufferJSON.replacer)) };
             await authCollection.replaceOne(
                 { _id: id },
-                JSON.parse(JSON.stringify(data, BufferJSON.replacer)),
+                wrappedData,
                 { upsert: true }
             );
         } catch (error) {
@@ -131,7 +132,7 @@ async function connectToWhatsApp() {
     const readData = async (id) => {
         try {
             const data = await authCollection.findOne({ _id: id });
-            return data ? JSON.parse(JSON.stringify(data), BufferJSON.reviver) : null;
+            return data ? JSON.parse(JSON.stringify(data.value), BufferJSON.reviver) : null;
         } catch (error) {
             console.error(`❌ MongoDB Read Error (${id}):`, error.message);
             return null;
