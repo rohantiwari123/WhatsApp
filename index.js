@@ -207,8 +207,8 @@ async function connectToWhatsApp() {
   const sock = makeWASocket({
     auth: state,
     printQRInTerminal: false,
-    logger: pino({ level: "silent" }),
-    browser: ["Ubuntu", "Chrome", "20.0.04"],
+    logger: pino({ level: "info" }),
+    browser: ["Mac OS", "Chrome", "121.0.6167.184"],
     connectTimeoutMs: 60000,
     defaultQueryTimeoutMs: 0,
     keepAliveIntervalMs: 10000,
