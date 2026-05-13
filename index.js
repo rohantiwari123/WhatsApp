@@ -6,6 +6,7 @@ import makeWASocket, {
   downloadMediaMessage,
   BufferJSON,
   initAuthCreds,
+  proto,
 } from "@whiskeysockets/baileys";
 import Groq from "groq-sdk";
 import qrcode from "qrcode-terminal";
@@ -106,30 +107,43 @@ RESPONSE STRUCTURE & BEHAVIOR:
 // ----------------------------------------------------
 // 🚀 3. MAIN WHATSAPP CONNECTION LOOP
 // ----------------------------------------------------
+const mongoClient = new MongoClient(process.env.MONGODB_URI);
+await mongoClient.connect();
+const authCollection = mongoClient.db("whatsapp_bot").collection("auth_session");
+
 async function connectToWhatsApp() {
     // === MONGODB AUTH SETUP START ===
-    console.log("⏳ MongoDB से कनेक्ट हो रहा है...");
-    const mongoClient = new MongoClient(process.env.MONGODB_URI);
-    await mongoClient.connect();
-    console.log("✅ MongoDB कनेक्ट हो गया!");
+    console.log("⏳ WhatsApp से कनेक्ट हो रहा है (MongoDB Auth)...");
 
-    const collection = mongoClient.db("whatsapp_bot").collection("auth_session");
-
-    // Custom MongoDB Adapter for Baileys
-
-    const writeData = (data, id) => {
-        return collection.replaceOne({ _id: id }, JSON.parse(JSON.stringify(data, BufferJSON.replacer)), { upsert: true });
+    const writeData = async (data, id) => {
+        try {
+            await authCollection.replaceOne(
+                { _id: id },
+                JSON.parse(JSON.stringify(data, BufferJSON.replacer)),
+                { upsert: true }
+            );
+        } catch (error) {
+            console.error(`❌ MongoDB Write Error (${id}):`, error.message);
+            throw error;
+        }
     };
+
     const readData = async (id) => {
         try {
-            const data = await collection.findOne({ _id: id });
+            const data = await authCollection.findOne({ _id: id });
             return data ? JSON.parse(JSON.stringify(data), BufferJSON.reviver) : null;
         } catch (error) {
+            console.error(`❌ MongoDB Read Error (${id}):`, error.message);
             return null;
         }
     };
+
     const removeData = async (id) => {
-        try { await collection.deleteOne({ _id: id }); } catch (error) {}
+        try {
+            await authCollection.deleteOne({ _id: id });
+        } catch (error) {
+            console.error(`❌ MongoDB Delete Error (${id}):`, error.message);
+        }
     };
 
     const creds = (await readData('creds')) || initAuthCreds();
@@ -139,10 +153,15 @@ async function connectToWhatsApp() {
         keys: {
             get: async (type, ids) => {
                 const data = {};
-                await Promise.all(ids.map(async (id) => {
-                    let value = await readData(`${type}-${id}`);
-                    data[id] = value;
-                }));
+                await Promise.all(
+                    ids.map(async (id) => {
+                        let value = await readData(`${type}-${id}`);
+                        if (type === 'app-state-sync-key' && value) {
+                            value = proto.Message.AppStateSyncKeyData.fromObject(value);
+                        }
+                        data[id] = value;
+                    })
+                );
                 return data;
             },
             set: async (data) => {
@@ -231,7 +250,7 @@ async function connectToWhatsApp() {
       
       if (statusCode === DisconnectReason.loggedOut) {
         console.log("❌ Session Logged Out. Clearing MongoDB session...");
-        await collection.deleteMany({});
+        await authCollection.deleteMany({});
         console.log("✅ Session cleared. Please restart the bot to re-pair.");
       }
       
