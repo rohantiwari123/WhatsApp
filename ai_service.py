@@ -255,6 +255,16 @@ async def process_tts(request: TTSRequest):
         print(f"TTS Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/fact")
+async def process_fact():
+    try:
+        fact_prompt = "Provide one extremely deep, scientifically accurate, and philosophically profound fact about the universe or consciousness. Strictly follow WhatsApp formatting (*bold*, _italic_)."
+        result = chat_model.invoke([HumanMessage(content=fact_prompt)])
+        return {"response": result.content}
+    except Exception as e:
+        print(f"Fact Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/youtube")
 async def process_youtube(request: YouTubeRequest):
     try:
@@ -272,6 +282,14 @@ async def process_youtube(request: YouTubeRequest):
             'no_warnings': True,
             'noplaylist': True,
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['ios', 'android', 'web_embedded'],
+                    'player_skip': ['webpage', 'configs'],
+                }
+            },
+            'nocheckcertificate': True,
+            'geo_bypass': True,
         }
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

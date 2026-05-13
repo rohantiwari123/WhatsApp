@@ -131,6 +131,7 @@ const authCollection = mongoClient.db("whatsapp_bot").collection("auth_session")
 
 let isConnecting = false;
 let pairingTimeout = null;
+let reconnectAttempts = 0;
 
 async function connectToWhatsApp() {
     if (isConnecting) return;
@@ -302,8 +303,11 @@ async function connectToWhatsApp() {
       
       console.log(`🔄 Connection closed (status: ${statusCode}), reconnecting...`);
       
+      let delay = 5000;
       if (lastDisconnect.error?.message?.includes("conflict")) {
-        console.warn("⚠️ Conflict Detected: Another instance of this bot is likely running elsewhere.");
+        reconnectAttempts++;
+        delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 60000); // Exponential backoff up to 1 min
+        console.warn(`⚠️ Conflict Detected: Reconnecting in ${delay/1000}s (Attempt ${reconnectAttempts})`);
       }
 
       if (isLoggedOut) {
@@ -312,10 +316,11 @@ async function connectToWhatsApp() {
         console.log("✅ Session cleared. Bot will restart fresh.");
       }
       
-      setTimeout(() => connectToWhatsApp(), 5000);
+      setTimeout(() => connectToWhatsApp(), delay);
     } else if (connection === "open") {
         isConnecting = false;
         sock.pairingRequested = false;
+        reconnectAttempts = 0; // Reset on success
         if (pairingTimeout) {
             clearTimeout(pairingTimeout);
             pairingTimeout = null;
@@ -510,8 +515,9 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 6.  */imagine [prompt]* - Generates a high-quality AI image.
 7.  */summarize [URL]* - Scrapes a webpage for a philosophical TL;DR.
 8.  */yt [YouTube URL]* - Downloads and sends a YouTube video directly.
-9.  */ping* - Check if the bot is alive.
-10. */help* - Shows this guide.
+9.  */fact* - Get a deep scientific or philosophical fact.
+10. */ping* - Check if the bot is alive.
+11. */help* - Shows this guide.
 
 *FEATURES:*
 *   *Natural Chat:* Just talk to me! I have persistent memory.
@@ -522,6 +528,21 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 
         await sock.sendMessage(senderId, { text: helpMessage }, { quoted: msg });
         await sock.sendMessage(senderId, { react: { text: "📖", key: msg.key } });
+        return;
+      }
+
+      // 🧠 COMMAND: /fact
+      if (text.toLowerCase() === "/fact") {
+        try {
+          const response = await fetchWithTimeout("http://localhost:8080/fact", {
+            method: "GET",
+          });
+          const data = await response.json();
+          await sock.sendMessage(senderId, { text: `🌌 *Beyond the Verse: Deep Fact*\n\n${data.response}` }, { quoted: msg });
+          await sock.sendMessage(senderId, { react: { text: "🧠", key: msg.key } });
+        } catch (e) {
+          await sock.sendMessage(senderId, { text: "⚠️ तथ्य खोजने में समस्या आ रही है।" }, { quoted: msg });
+        }
         return;
       }
 
