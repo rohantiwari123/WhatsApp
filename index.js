@@ -239,11 +239,11 @@ async function connectToWhatsApp() {
         
         try {
             console.log("⏳ [1/3] Initializing secure connection...");
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            await new Promise(resolve => setTimeout(resolve, 3000));
             
-            console.log("⏳ [2/3] Synchronizing with WhatsApp (10s delay for stability)...");
+            console.log("⏳ [2/3] Synchronizing with WhatsApp (5s delay)...");
             await new Promise(resolve => {
-                pairingTimeout = setTimeout(resolve, 10000);
+                pairingTimeout = setTimeout(resolve, 5000);
             });
 
             if (sock.authState.creds.registered) return;
@@ -812,3 +812,4 @@ process.on("unhandledRejection", (reason, promise) => {
 });
 
 connectToWhatsApp();
+ectToWhatsApp();
