@@ -5,7 +5,7 @@
   "type": "module",
   "main": "index.js",
   "scripts": {
-    "start": "node --watch index.js"
+    "start": "concurrently \"./venv/bin/uvicorn ai_service:app --host 0.0.0.0 --port 8000 --reload\" \"node --watch index.js\""
   },
   "keywords": [],
   "author": "Ives van Hoorne",
@@ -13,10 +13,12 @@
   "dependencies": {
     "@tavily/core": "^0.7.3",
     "@whiskeysockets/baileys": "^7.0.0-rc10",
+    "concurrently": "^9.2.1",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "groq-sdk": "^1.2.0",
     "node-cron": "^4.2.1",
+    "pino": "^10.3.1",
     "qrcode-terminal": "^0.12.0"
   }
 }

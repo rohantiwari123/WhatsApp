@@ -1,4 +1,5 @@
 import "dotenv/config";
+import pino from "pino";
 import makeWASocket, {
   useMultiFileAuthState,
   DisconnectReason,
@@ -22,6 +23,20 @@ app.listen(port, () => console.log(`🌐 Server running on port ${port}`));
 // ----------------------------------------------------
 const SESSION_FILE = "./user_sessions.json";
 let userSessions = new Map();
+
+// Helper for fetch with timeout
+async function fetchWithTimeout(url, options = {}, timeout = 60000) {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    throw error;
+  }
+}
 
 // Load sessions from file if it exists so we don't lose context on restart
 function loadSessions() {
@@ -84,12 +99,14 @@ async function connectToWhatsApp() {
   const sock = makeWASocket({
     auth: state,
     printQRInTerminal: false,
+    logger: pino({ level: "warn" }),
   });
 
   sock.ev.on("creds.update", saveCreds);
 
-  sock.ev.on("connection.update", (update) => {
+  sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
+    console.log("🔄 Connection Update:", connection || "state update", update);
 
     if (qr) {
       console.log("\n--- नया QR कोड जेनरेट हो गया है ---");
@@ -98,14 +115,17 @@ async function connectToWhatsApp() {
     }
 
     if (connection === "close") {
-      const shouldReconnect =
-        lastDisconnect.error?.output?.statusCode !== DisconnectReason.loggedOut;
-      console.log("Connection closed, reconnecting...", shouldReconnect);
+      const statusCode = lastDisconnect.error?.output?.statusCode;
+      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+      
+      console.log(`Connection closed (status: ${statusCode}), reconnecting: ${shouldReconnect}`);
+      
       if (shouldReconnect) {
-        connectToWhatsApp();
+        setTimeout(() => connectToWhatsApp(), 5000);
       }
     } else if (connection === "open") {
       console.log("✅ Beyond the Verse AI CodeSandbox पर लाइव है!");
+      console.log(`🤖 Bot ID: ${sock.user.id}`);
     }
   });
 
@@ -161,96 +181,124 @@ You must return ONLY a valid JSON object. Do not include markdown code blocks. F
   // 💬 5. MESSAGE HANDLING & ADVANCED AI LOGIC
   // ----------------------------------------------------
   sock.ev.on("messages.upsert", async (m) => {
-    const msg = m.messages[0];
-
-    if (!msg.message || msg.key.fromMe) return;
-
-    const senderId = msg.key.remoteJid;
-
-    // Extract text from text message, extended message, or image caption
-    let text =
-      msg.message.conversation ||
-      msg.message.extendedTextMessage?.text ||
-      msg.message.imageMessage?.caption ||
-      "";
-
-    const myId = sock.user?.id;
-    const myLid = sock.user?.lid;
-
-    if (!myId) return;
-
-    const cleanBotNumber = myId.split(":")[0].split("@")[0];
-    const botJid = `${cleanBotNumber}@s.whatsapp.net`;
-    const botLidJid = myLid ? `${myLid.split(":")[0].split("@")[0]}@lid` : "";
-
-    const isGroup = senderId.endsWith("@g.us");
-
-    // Extract Context & Mentions
-    const contextInfo =
-      msg.message?.extendedTextMessage?.contextInfo ||
-      msg.message?.imageMessage?.contextInfo ||
-      {};
-    const participant = contextInfo.participant || "";
-    const mentionedJids = contextInfo.mentionedJid || [];
-
-    const isMentioned =
-      mentionedJids.includes(botJid) ||
-      (botLidJid && mentionedJids.includes(botLidJid));
-    const isRepliedToBot =
-      participant === botJid || (botLidJid && participant === botLidJid);
-
-    // Image detection
-    const isImageMessage = !!msg.message.imageMessage;
-    const isQuotedImage =
-      !!msg.message.extendedTextMessage?.contextInfo?.quotedMessage
-        ?.imageMessage;
-    const hasImage = isImageMessage || isQuotedImage;
-
-    // Decision: Should the bot reply?
-    const shouldReply = !isGroup || isMentioned || isRepliedToBot;
-
-    if (!shouldReply) return;
-
-    // UX Feature: Auto-read the message when bot processes it
-    await sock.readMessages([msg.key]);
-
-    // Clean text (remove mentions)
-    text = text.replace(/@\S+/g, "").trim();
-
-    // Context from quoted messages
-    const quotedMessageInfo =
-      msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
-    let quotedText = "";
-
-    if (quotedMessageInfo) {
-      quotedText =
-        quotedMessageInfo.conversation ||
-        quotedMessageInfo.extendedTextMessage?.text ||
-        quotedMessageInfo.imageMessage?.caption ||
-        "";
-    }
-
-    if (quotedText) {
-      console.log(`📌 Quoted Context: ${quotedText}`);
-      text = `[मैंने आपके इस पिछले मैसेज पर रिप्लाई किया है: "${quotedText}"]\n\nमेरा नया सवाल/जवाब: ${text}`;
-    }
-
-    // Default greeting in group without direct text but mentioned
-    if (!text && isGroup && !hasImage) {
-      text = "नमस्ते! मैं 'Beyond the Verse' का AI गाइड हूँ।";
-    }
-
-    if (!text && !hasImage) return;
-
-    console.log(`💬 User: ${text || "[Image/Media]"}`);
-
-    // UX Feature: React with an hourglass to indicate processing
-    await sock.sendMessage(senderId, { react: { text: "⏳", key: msg.key } });
-
-    // UX Feature: Send "typing..." status
-    await sock.sendPresenceUpdate("composing", senderId);
-
     try {
+      if (!m.messages || m.messages.length === 0) return;
+      const msg = m.messages[0];
+
+      if (!msg.message || msg.key.fromMe) return;
+
+      const senderId = msg.key.remoteJid;
+      const myId = sock.user?.id;
+      const myLid = sock.user?.lid;
+
+      if (!myId) {
+        console.warn("⚠️ Bot ID not available yet.");
+        return;
+      }
+
+      // Extract text from text message, extended message, or image caption
+      let text =
+        msg.message.conversation ||
+        msg.message.extendedTextMessage?.text ||
+        msg.message.imageMessage?.caption ||
+        "";
+
+      const messageType = Object.keys(msg.message)[0];
+      const cleanBotNumber = myId.split(":")[0].split("@")[0];
+      const isGroup = senderId.endsWith("@g.us");
+
+      // Extract Context & Mentions
+      const contextInfo =
+        msg.message?.extendedTextMessage?.contextInfo ||
+        msg.message?.imageMessage?.contextInfo ||
+        {};
+      const participant = contextInfo.participant || "";
+      const mentionedJids = contextInfo.mentionedJid || [];
+
+      // Check for mentions or replies (more robustly)
+      const isMentioned = mentionedJids.some(jid => 
+        jid.includes(cleanBotNumber) || (myLid && jid.includes(myLid.split(":")[0]))
+      );
+      const isRepliedToBot = 
+        participant.includes(cleanBotNumber) || (myLid && participant.includes(myLid.split(":")[0]));
+
+      // Image detection
+      const isImageMessage = !!msg.message.imageMessage;
+      const isQuotedImage =
+        !!msg.message.extendedTextMessage?.contextInfo?.quotedMessage
+          ?.imageMessage;
+      const hasImage = isImageMessage || isQuotedImage;
+
+      // Decision: Should the bot reply?
+      const shouldReply = !isGroup || isMentioned || isRepliedToBot;
+      
+      console.log(`📩 Message from ${senderId} [Group: ${isGroup}, Type: ${messageType}]`);
+      console.log(`🔍 Mentions: [${mentionedJids}], RepliedTo: ${participant}`);
+      console.log(`🔍 Status: isMentioned=${isMentioned}, isRepliedToBot=${isRepliedToBot}, shouldReply=${shouldReply}`);
+
+      if (!shouldReply) {
+        if (isGroup) console.log(`⏭️ Skipping group message from ${senderId} (no mention/reply).`);
+        return;
+      }
+
+      // UX Feature: Auto-read the message when bot processes it
+      try {
+        await sock.readMessages([msg.key]);
+      } catch (e) {
+        console.error("Read Error:", e.message);
+      }
+
+      // Clean text (remove mentions)
+      text = text.replace(/@\S+/g, "").trim();
+
+      // Context from quoted messages
+      const quotedMessageInfo =
+        msg.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+      let quotedText = "";
+
+      if (quotedMessageInfo) {
+        quotedText =
+          quotedMessageInfo.conversation ||
+          quotedMessageInfo.extendedTextMessage?.text ||
+          quotedMessageInfo.imageMessage?.caption ||
+          "";
+      }
+
+      if (quotedText) {
+        const commonErrors = [
+          "⚠️ माफ़ करना, अभी सिस्टम में कुछ तकनीकी समस्या आ रही है।",
+          "माफ़ करना, मेरे सोचने की क्षमता (API Quota) अभी खत्म हो गई है।",
+        ];
+        const isErrorQuoted = commonErrors.some((err) => quotedText.includes(err));
+
+        if (!isErrorQuoted) {
+          console.log(`📌 Quoted Context: ${quotedText}`);
+          text = `[मैंने आपके इस पिछले मैसेज पर रिप्लाई किया है: "${quotedText}"]\n\nमेरा नया सवाल/जवाब: ${text}`;
+        }
+      }
+      // Default greeting in group without direct text but mentioned
+      if (!text && isGroup && !hasImage) {
+        text = "नमस्ते! मैं 'Beyond the Verse' का AI गाइड हूँ।";
+      }
+
+      if (!text && !hasImage) {
+        console.log(`⏭️ Skipping empty message from ${senderId}.`);
+        return;
+      }
+
+      console.log(`💬 User (${senderId}): ${text || "[Image/Media]"}`);
+
+      // UX Feature: React with an hourglass to indicate processing
+      await sock.sendMessage(senderId, { react: { text: "⏳", key: msg.key } });
+
+      // UX Feature: Send "typing..." status
+      try {
+        await sock.sendPresenceUpdate("composing", senderId);
+      } catch (e) {
+        console.warn("Presence Update Error:", e.message);
+      }
+
+      try {
       // 🆘 COMMAND: /help (List all commands)
       if (text.toLowerCase() === "/help") {
         const helpMessage = `🌌 *Beyond the Verse AI: Guide*
@@ -296,7 +344,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         );
 
         try {
-          const response = await fetch("http://localhost:8000/youtube", {
+          const response = await fetchWithTimeout("http://localhost:8000/youtube", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url }),
@@ -376,7 +424,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         if (!query) return;
 
         try {
-          const response = await fetch("http://localhost:8000/research", {
+          const response = await fetchWithTimeout("http://localhost:8000/research", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ query }),
@@ -416,7 +464,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         if (!url) return;
 
         try {
-          const response = await fetch("http://localhost:8000/summarize", {
+          const response = await fetchWithTimeout("http://localhost:8000/summarize", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url }),
@@ -478,7 +526,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
               .trim() ||
             "What is in this image? Explain beautifully and deeply like a Beyond the Verse guide.";
 
-          const response = await fetch("http://localhost:8000/vision", {
+          const response = await fetchWithTimeout("http://localhost:8000/vision", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ user_id: senderId, prompt, base64_image: base64Image }),
@@ -514,7 +562,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       const cleanHistory = history.filter((msg) => msg.role !== "system");
 
       try {
-        const response = await fetch("http://localhost:8000/chat", {
+        const response = await fetchWithTimeout("http://localhost:8000/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -557,7 +605,9 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       console.error("❌ AI Error:", error);
 
       // Change reaction to cross mark on failure
-      await sock.sendMessage(senderId, { react: { text: "❌", key: msg.key } });
+      try {
+        await sock.sendMessage(senderId, { react: { text: "❌", key: msg.key } });
+      } catch (e) {}
 
       const errorMessage = error.toString().toLowerCase();
 
@@ -575,7 +625,10 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         await sock.sendMessage(senderId, { text: genericMsg }, { quoted: msg });
       }
     }
-  });
+  } catch (globalError) {
+    console.error("❌ Global Upsert Error:", globalError);
+  }
+});
 }
 
 // 🛡️ Global unhandled rejection handler to keep the bot alive

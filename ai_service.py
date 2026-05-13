@@ -26,15 +26,23 @@ if not tavily_api_key:
 from langchain_core.prompts import PromptTemplate
 
 # Models
-chat_model = ChatGroq(temperature=0.7, groq_api_key=groq_api_key, model_name="llama-3.3-70b-versatile")
-vision_model = ChatGroq(temperature=0.7, groq_api_key=groq_api_key, model_name="llama-3.2-11b-vision-preview")
+try:
+    chat_model = ChatGroq(temperature=0.7, groq_api_key=groq_api_key, model_name="llama-3.3-70b-versatile")
+    vision_model = ChatGroq(temperature=0.7, groq_api_key=groq_api_key, model_name="llama-3.2-11b-vision-preview")
+except Exception as e:
+    print(f"Error initializing models: {e}")
+    # Fallback to a common model if initialization fails
+    chat_model = ChatGroq(temperature=0.7, groq_api_key=groq_api_key, model_name="llama-3.1-8b-instant")
+    vision_model = None
 
 # --- Agent Setup ---
-search_tool = TavilySearchResults(k=5)
-tools = [search_tool]
-
-# Local ReAct Prompt
-template = """Answer the following questions as best you can. You have access to the following tools:
+agent_executor = None
+try:
+    search_tool = TavilySearchResults(k=5)
+    tools = [search_tool]
+    
+    # Local ReAct Prompt
+    template = """Answer the following questions as best you can. You have access to the following tools:
 
 {tools}
 
@@ -54,9 +62,12 @@ Begin!
 Question: {input}
 Thought:{agent_scratchpad}"""
 
-prompt_template = PromptTemplate.from_template(template)
-agent = create_react_agent(chat_model, tools, prompt_template)
-agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True)
+    prompt_template = PromptTemplate.from_template(template)
+    agent = create_react_agent(chat_model, tools, prompt_template)
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True)
+except Exception as e:
+    print(f"Error initializing agent: {e}")
+    tools = []
 
 class Message(BaseModel):
     role: str
@@ -98,7 +109,8 @@ RESPONSE STRUCTURE & BEHAVIOR:
 2. Bullet Points: Break down complex concepts into easy-to-digest bullet points using the asterisk (*). Avoid long paragraphs.
 3. Keep it Simple: Explain profound ideas without heavy jargon. Use simple, everyday analogies.
 4. No Business Talk: Never mention products, pricing, or sales. strictly act as a knowledge guide.
-5. Language: Always mirror the user's language (reply in pure Hindi, Hinglish, or English depending on how they ask)."""
+5. Language: Always mirror the user's language (reply in pure Hindi, Hinglish, or English depending on how they ask).
+6. Technical Issues: If the user mentions a technical problem or says "fix it", acknowledge it briefly (e.g., "The issue has been resolved") and steer the conversation back to your core topics (science, philosophy). Do not give troubleshooting advice."""
 
 @app.post("/chat")
 async def process_chat(request: ChatRequest):
@@ -134,6 +146,9 @@ async def process_vision(request: VisionRequest):
 @app.post("/research")
 async def process_research(request: ResearchRequest):
     try:
+        if not agent_executor:
+            return {"response": "⚠️ Research agent is not available right now. Please try standard chat instead."}
+        
         agent_prompt = f"""Conduct a deep research on the following topic: "{request.query}"
         
         Provide a comprehensive, detailed report.

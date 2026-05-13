@@ -1,0 +1,98 @@
+✅ User memory (sessions) successfully loaded from disk.
+🌐 Server running on port 3000
+🔄 Connection Update: connecting {
+  connection: 'connecting',
+  receivedPendingNotifications: false,
+  qr: undefined
+}
+🔄 Connection Update: state update { receivedPendingNotifications: true }
+🔄 Connection Update: state update { isOnline: true }
+🔄 Connection Update: open { connection: 'open' }
+✅ Beyond the Verse AI CodeSandbox पर लाइव है!
+{"level":50,"time":1778632613152,"pid":6739,"hostname":"9qhh7x","reasonNode":{"tag":"conflict","attrs":{"type":"replaced"}},"fullErrorNode":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+🔄 Connection Update: close {
+  connection: 'close',
+  lastDisconnect: {
+    error: Error: Stream Errored (conflict)
+        at WebSocketClient.<anonymous> (file:///project/workspace/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:792:18)
+        at WebSocketClient.emit (node:events:518:28)
+        at file:///project/workspace/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:462:35
+        at processData (file:///project/workspace/node_modules/@whiskeysockets/baileys/lib/Utils/noise-handler.js:126:13)
+        at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at async Object.decodeFrame (file:///project/workspace/node_modules/@whiskeysockets/baileys/lib/Utils/noise-handler.js:197:13)
+        at async WebSocketClient.onMessageReceived (file:///project/workspace/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:439:9) {
+      data: [Object],
+      isBoom: true,
+      isServer: false,
+      output: [Object]
+    },
+    date: 2026-05-13T00:36:53.332Z
+  }
+}
+Connection closed, reconnecting... true
+🔄 Connection Update: connecting {
+  connection: 'connecting',
+  receivedPendingNotifications: false,
+  qr: undefined
+}
+🔄 Connection Update: state update { receivedPendingNotifications: true }
+🔄 Connection Update: state update { isOnline: true }
+🔄 Connection Update: open { connection: 'open' }
+✅ Beyond the Verse AI CodeSandbox पर लाइव है!
+{"level":50,"time":1778632614152,"pid":6739,"hostname":"9qhh7x","reasonNode":{"tag":"conflict","attrs":{"type":"replaced"}},"fullErrorNode":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+🔄 Connection Update: close {
+  connection: 'close',
+  lastDisconnect: {
+    error: Error: Stream Errored (conflict)
+        at WebSocketClient.<anonymous> (file:///project/workspace/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:792:18)
+        at WebSocketClient.emit (node:events:518:28)
+        at file:///project/workspace/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:462:35
+        at processData (file:///project/workspace/node_modules/@whiskeysockets/baileys/lib/Utils/noise-handler.js:126:13)
+        at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at async Object.decodeFrame (file:///project/workspace/node_modules/@whiskeysockets/baileys/lib/Utils/noise-handler.js:197:13)
+        at async WebSocketClient.onMessageReceived (file:///project/workspace/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:439:9) {
+      data: [Object],
+      isBoom: true,
+      isServer: false,
+      output: [Object]
+    },
+    date: 2026-05-13T00:36:54.297Z
+  }
+}
+Connection closed, reconnecting... true
+🔄 Connection Update: connecting {
+  connection: 'connecting',
+  receivedPendingNotifications: false,
+  qr: undefined
+}
+🔄 Connection Update: state update { isOnline: true }
+🔄 Connection Update: open { connection: 'open' }
+✅ Beyond the Verse AI CodeSandbox पर लाइव है!
+🔄 Connection Update: state update { receivedPendingNotifications: true }
+{"level":50,"time":1778632614893,"pid":6739,"hostname":"9qhh7x","reasonNode":{"tag":"conflict","attrs":{"type":"replaced"}},"fullErrorNode":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
+🔄 Connection Update: close {
+  connection: 'close',
+  lastDisconnect: {
+    error: Error: Stream Errored (conflict)
+        at WebSocketClient.<anonymous> (file:///project/workspace/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:792:18)
+        at WebSocketClient.emit (node:events:518:28)
+        at file:///project/workspace/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:462:35
+        at processData (file:///project/workspace/node_modules/@whiskeysockets/baileys/lib/Utils/noise-handler.js:126:13)
+        at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+        at async Object.decodeFrame (file:///project/workspace/node_modules/@whiskeysockets/baileys/lib/Utils/noise-handler.js:197:13)
+        at async WebSocketClient.onMessageReceived (file:///project/workspace/node_modules/@whiskeysockets/baileys/lib/Socket/socket.js:439:9) {
+      data: [Object],
+      isBoom: true,
+      isServer: false,
+      output: [Object]
+    },
+    date: 2026-05-13T00:36:55.011Z
+  }
+}
+Connection closed, reconnecting... true
+🔄 Connection Update: connecting {
+  connection: 'connecting',
+  receivedPendingNotifications: false,
+  qr: undefined
+}
+{"level":50,"time":1778632615986,"pid":6739,"hostname":"9qhh7x","reasonNode":{"tag":"conflict","attrs":{"type":"replaced"}},"fullErrorNode":{"tag":"stream:error","attrs":{},"content":[{"tag":"conflict","attrs":{"type":"replaced"}}]},"msg":"stream errored out"}
