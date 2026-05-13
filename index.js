@@ -195,7 +195,7 @@ async function connectToWhatsApp() {
     auth: state,
     printQRInTerminal: false,
     logger: pino({ level: "warn" }),
-    browser: ["Ubuntu", "Chrome", "20.0.04"],
+    browser: ["macOS", "Chrome", "121.0.6167.184"],
   });
 
   sock.ev.on("creds.update", saveCreds);
@@ -217,13 +217,18 @@ async function connectToWhatsApp() {
 
       console.log(`\n📲 Attempting to pair with: ${phoneNumber}`);
       
-      // Increased delay to 10s for maximum stability before requesting code
-      setTimeout(async () => {
+      const requestPairingCodeWithRetry = async () => {
+          if (sock.authState.creds.registered) return;
+          
           try {
+              // Wait for socket to be somewhat stable
+              await new Promise(resolve => setTimeout(resolve, 5000));
+              
               if (sock.connectionState === 'close') {
-                  console.log("🔄 Socket closed, waiting for reconnection to request pairing code...");
+                  console.log("🔄 Socket closed, waiting for next reconnection attempt...");
                   return;
               }
+
               console.log("📡 Requesting pairing code from WhatsApp...");
               let code = await sock.requestPairingCode(phoneNumber);
               code = code?.match(/.{1,4}/g)?.join("-") || code;
@@ -236,8 +241,15 @@ async function connectToWhatsApp() {
               console.log(`4. Enter the code: ${code}\n`);
           } catch (error) {
               console.error("❌ Failed to generate pairing code:", error.message);
+              // Retry if it was a connection issue
+              if (error.message.includes("Closed") || error.message.includes("Timed out")) {
+                  console.log("🔄 Retrying pairing code request in 8 seconds...");
+                  setTimeout(requestPairingCodeWithRetry, 8000);
+              }
           }
-      }, 10000); 
+      };
+
+      requestPairingCodeWithRetry();
     }
   }
 
@@ -248,20 +260,15 @@ async function connectToWhatsApp() {
       const statusCode = lastDisconnect.error?.output?.statusCode;
       const isLoggedOut = statusCode === DisconnectReason.loggedOut;
       
-      // If 401 occurs and we are NOT registered, it means the session is corrupted.
-      // Clear it and retry for a fresh start.
-      const isUnauthorized = statusCode === 401;
-      const shouldClear = isLoggedOut || (isUnauthorized && !sock.authState.creds.registered);
-      
       console.log(`🔄 Connection closed (status: ${statusCode}), reconnecting: true`);
       
-      if (shouldClear) {
-        console.log("🧹 Clearing invalid/expired session from MongoDB...");
+      // Only clear session if we were actually registered and now got logged out
+      if (isLoggedOut && sock.authState.creds.registered) {
+        console.log("🧹 Session Logged Out. Clearing MongoDB session...");
         await authCollection.deleteMany({});
         console.log("✅ Session cleared. Bot will now retry with a fresh state.");
       }
       
-      // Always try to reconnect unless it's a manual logout (which we handled by clearing and retrying)
       setTimeout(() => connectToWhatsApp(), 5000);
     } else if (connection === "open") {
       console.log("✅ Beyond the Verse AI CodeSandbox पर लाइव है!");
