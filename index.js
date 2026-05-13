@@ -10,6 +10,7 @@ import qrcode from "qrcode-terminal";
 import cron from "node-cron";
 import { tavily } from "@tavily/core";
 import fs from "fs";
+import readline from "readline";
 
 import express from "express";
 const app = express();
@@ -17,6 +18,16 @@ const port = process.env.PORT || 3000;
 
 app.get("/", (req, res) => res.send("Beyond the Verse AI is Live!"));
 app.listen(port, () => console.log(`🌐 Server running on port ${port}`));
+
+// ----------------------------------------------------
+// ⌨️ 0. INTERACTIVE INPUT SETUP
+// ----------------------------------------------------
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
+
+const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 
 // ----------------------------------------------------
 // 🧠 1. PERSISTENT MEMORY SYSTEM (SAVES SESSIONS TO DISK)
@@ -100,19 +111,49 @@ async function connectToWhatsApp() {
     auth: state,
     printQRInTerminal: false,
     logger: pino({ level: "warn" }),
+    browser: ["Chrome (Linux)", "", ""],
   });
+
+  // --- Pairing Code Logic ---
+  if (!sock.authState.creds.registered) {
+    let phoneNumber = process.env.PHONE_NUMBER;
+    
+    if (!phoneNumber) {
+      console.log("\n📲 No PHONE_NUMBER found in .env");
+      phoneNumber = await question("Please enter your phone number with country code (e.g. 91XXXXXXXXXX): ");
+    }
+
+    if (phoneNumber) {
+      phoneNumber = phoneNumber.replace(/[^0-9]/g, "");
+      console.log(`\n📲 Connecting with Phone Number: ${phoneNumber}`);
+      
+      setTimeout(async () => {
+        try {
+          let code = await sock.requestPairingCode(phoneNumber);
+          code = code?.match(/.{1,4}/g)?.join("-") || code;
+          console.log("\n" + "=".repeat(30));
+          console.log(`✅ YOUR PAIRING CODE: ${code}`);
+          console.log("=".repeat(30) + "\n");
+        } catch (error) {
+          console.error("❌ Failed to generate pairing code:", error.message);
+        }
+      }, 3000);
+    }
+  }
 
   sock.ev.on("creds.update", saveCreds);
 
   sock.ev.on("connection.update", async (update) => {
     const { connection, lastDisconnect, qr } = update;
-    console.log("🔄 Connection Update:", connection || "state update", update);
-
-    if (qr) {
+    
+    // QR logic disabled as per user request (prefer Pairing Code)
+    /*
+    if (qr && !process.env.PHONE_NUMBER) {
       console.log("\n--- नया QR कोड जेनरेट हो गया है ---");
       qrcode.generate(qr, { small: true });
       console.log("👆 अपने WhatsApp (Linked Devices) से इसे स्कैन करें!\n");
     }
+    */
 
     if (connection === "close") {
       const statusCode = lastDisconnect.error?.output?.statusCode;
