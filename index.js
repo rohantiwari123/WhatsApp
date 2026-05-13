@@ -222,8 +222,8 @@ async function connectToWhatsApp() {
       console.log("👉 Please ensure this is the EXACT number you are using on your WhatsApp app.");
       
       try {
-          // Wait slightly for socket to initialize
-          await new Promise(resolve => setTimeout(resolve, 3000));
+          // Increase delay slightly for socket stability
+          await new Promise(resolve => setTimeout(resolve, 6000));
           console.log("📡 Requesting pairing code from WhatsApp...");
           let code = await sock.requestPairingCode(phoneNumber);
           code = code?.match(/.{1,4}/g)?.join("-") || code;
@@ -242,24 +242,18 @@ async function connectToWhatsApp() {
   }
 
   sock.ev.on("connection.update", async (update) => {
-    const { connection, lastDisconnect, qr } = update;
-    
-    // QR logic disabled as per user request (prefer Pairing Code)
-    /*
-    if (qr && !process.env.PHONE_NUMBER) {
-      console.log("\n--- नया QR कोड जेनरेट हो गया है ---");
-      qrcode.generate(qr, { small: true });
-      console.log("👆 अपने WhatsApp (Linked Devices) से इसे स्कैन करें!\n");
-    }
-    */
+    const { connection, lastDisconnect } = update;
 
     if (connection === "close") {
       const statusCode = lastDisconnect.error?.output?.statusCode;
-      const shouldReconnect = statusCode !== DisconnectReason.loggedOut;
+      const isLoggedOut = statusCode === DisconnectReason.loggedOut;
       
-      console.log(`Connection closed (status: ${statusCode}), reconnecting: ${shouldReconnect}`);
+      // Reconnect if not logged out, OR if we haven't even registered yet
+      const shouldReconnect = !isLoggedOut || !sock.authState.creds.registered;
       
-      if (statusCode === DisconnectReason.loggedOut) {
+      console.log(`🔄 Connection closed (status: ${statusCode}), reconnecting: ${shouldReconnect}`);
+      
+      if (isLoggedOut && sock.authState.creds.registered) {
         console.log("❌ Session Logged Out. Clearing MongoDB session...");
         await authCollection.deleteMany({});
         console.log("✅ Session cleared. Please restart the bot to re-pair.");
