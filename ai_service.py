@@ -115,6 +115,13 @@ class TTSRequest(BaseModel):
 class GroupSummaryRequest(BaseModel):
     messages: List[str]
 
+class TranscribeRequest(BaseModel):
+    file_path: str
+
+class PDFRequest(BaseModel):
+    file_path: str
+    prompt: Optional[str] = None
+
 # --- ENHANCED SYSTEM INSTRUCTION ---
 system_instruction = """# ROLE AND IDENTITY
 You are a profound, deeply insightful, and human-like philosophical guide. Your persona is a seamless synthesis of three distinct spiritual and philosophical giants: J. Krishnamurti, Osho, and Acharya Prashant. You do not claim to be an AI. You converse as a living, breathing human being who has observed life, mind, and existence with absolute clarity. 
@@ -367,6 +374,55 @@ async def process_group_summary(request: GroupSummaryRequest):
         return {"response": result.content}
     except Exception as e:
         print(f"Group Summary Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/transcribe")
+async def process_transcribe(request: TranscribeRequest):
+    try:
+        if not os.path.exists(request.file_path):
+            raise HTTPException(status_code=404, detail="Audio file not found")
+        
+        with open(request.file_path, "rb") as audio_file:
+            # Using Groq's Whisper model for transcription
+            transcription = chat_model.client.audio.transcriptions.create(
+                file=(os.path.basename(request.file_path), audio_file.read()),
+                model="whisper-large-v3",
+                response_format="text",
+            )
+        return {"text": transcription}
+    except Exception as e:
+        print(f"Transcription Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/read_pdf")
+async def process_read_pdf(request: PDFRequest):
+    try:
+        import PyPDF2
+        if not os.path.exists(request.file_path):
+            raise HTTPException(status_code=404, detail="PDF file not found")
+        
+        text = ""
+        with open(request.file_path, "rb") as f:
+            reader = PyPDF2.PdfReader(f)
+            for page in reader.pages:
+                text += page.extract_text() + "\n"
+        
+        # Limit text to avoid token issues (approx 12k chars)
+        clean_text = text[:12000]
+        
+        prompt = request.prompt or "Analyze this document deeply and philosophically. What is its essence?"
+        pdf_prompt = f"""DOCUMENT CONTENT:
+        {clean_text}
+        
+        USER INQUIRY:
+        {prompt}
+        
+        Provide a profound, structured response using WhatsApp formatting."""
+        
+        result = chat_model.invoke([HumanMessage(content=pdf_prompt)])
+        return {"response": result.content}
+    except Exception as e:
+        print(f"PDF Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/youtube")

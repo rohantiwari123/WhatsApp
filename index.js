@@ -515,13 +515,22 @@ You must return ONLY a valid JSON object. Do not include markdown code blocks. F
 
       // Image detection
       const isImageMessage = !!msg.message.imageMessage;
+      const isVideoMessage = !!msg.message.videoMessage;
+      const isAudioMessage = !!msg.message.audioMessage;
+      const isDocumentMessage = !!msg.message.documentMessage;
+      
       const isQuotedImage =
         !!msg.message.extendedTextMessage?.contextInfo?.quotedMessage
           ?.imageMessage;
+      const isQuotedVideo =
+        !!msg.message.extendedTextMessage?.contextInfo?.quotedMessage
+          ?.videoMessage;
+
       const hasImage = isImageMessage || isQuotedImage;
+      const hasVideo = isVideoMessage || isQuotedVideo;
 
       // Decision: Should the bot reply?
-      const shouldReply = !isGroup || isMentioned || isRepliedToBot;
+      const shouldReply = !isGroup || isMentioned || isRepliedToBot || isAudioMessage;
       
       console.log(`📩 Message from ${senderId} [Group: ${isGroup}, Type: ${messageType}]`);
       console.log(`🔍 Mentions: [${mentionedJids}], RepliedTo: ${participant}`);
@@ -803,7 +812,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
           senderId,
           {
             image: { url: imageUrl },
-            caption: `✨ ये रही आपकी तस्वीर: ${imagePrompt}`,
+            caption: `✨ ye रही आपकी तस्वीर: ${imagePrompt}`,
           },
           { quoted: msg }
         );
@@ -811,6 +820,87 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         await sock.sendMessage(senderId, {
           react: { text: "🎨", key: msg.key },
         });
+        return;
+      }
+
+      // 🎭 COMMAND: /sticker (Convert Media to Sticker)
+      if (text.toLowerCase() === "/sticker") {
+        if (!hasImage && !hasVideo) {
+          await sock.sendMessage(senderId, { text: "⚠️ Please reply to an image or short video to create a sticker." }, { quoted: msg });
+          return;
+        }
+
+        try {
+          const mediaMsgObj = isImageMessage || isVideoMessage
+            ? msg
+            : {
+                key: msg.key,
+                message: msg.message.extendedTextMessage.contextInfo.quotedMessage,
+              };
+          
+          const buffer = await downloadMediaMessage(
+            mediaMsgObj,
+            "buffer",
+            {},
+            { reuploadRequest: sock.updateMediaMessage }
+          );
+
+          const tempInFile = `./downloads/sticker_in_${Date.now()}`;
+          const tempOutFile = `./downloads/sticker_out_${Date.now()}.webp`;
+          fs.writeFileSync(tempInFile, buffer);
+
+          const { execSync } = await import("child_process");
+          // Convert to webp with sticker constraints (512x512)
+          execSync(`ffmpeg -i ${tempInFile} -vcodec libwebp -filter:v "scale='if(gt(a,1),512,-1)':'if(gt(a,1),-1,512)',pad=512:512:(512-iw)/2:(512-ih)/2:color=black@0" -lossless 1 -loop 0 -an -vsync 0 ${tempOutFile}`);
+
+          await sock.sendMessage(senderId, { sticker: fs.readFileSync(tempOutFile) }, { quoted: msg });
+          
+          fs.unlinkSync(tempInFile);
+          fs.unlinkSync(tempOutFile);
+          await sock.sendMessage(senderId, { react: { text: "🎭", key: msg.key } });
+        } catch (e) {
+          console.error("Sticker Error:", e);
+          await sock.sendMessage(senderId, { text: "⚠️ Failed to create sticker. Ensure the video is short or the image is valid." }, { quoted: msg });
+        }
+        return;
+      }
+
+      // 🔊 COMMAND: /audio (Extract Audio from Video)
+      if (text.toLowerCase() === "/audio") {
+        if (!hasVideo) {
+          await sock.sendMessage(senderId, { text: "⚠️ Please reply to a video to extract its soul (audio)." }, { quoted: msg });
+          return;
+        }
+
+        try {
+          const mediaMsgObj = isVideoMessage
+            ? msg
+            : {
+                key: msg.key,
+                message: msg.message.extendedTextMessage.contextInfo.quotedMessage,
+              };
+          
+          const buffer = await downloadMediaMessage(mediaMsgObj, "buffer", {}, { reuploadRequest: sock.updateMediaMessage });
+          const tempVideo = `./downloads/temp_vid_${Date.now()}.mp4`;
+          const tempAudio = `./downloads/temp_aud_${Date.now()}.ogg`;
+          fs.writeFileSync(tempVideo, buffer);
+
+          const { execSync } = await import("child_process");
+          execSync(`ffmpeg -i ${tempVideo} -vn -acodec libopus ${tempAudio}`);
+
+          await sock.sendMessage(senderId, { 
+            audio: fs.readFileSync(tempAudio), 
+            mimetype: 'audio/ogg; codecs=opus', 
+            ptt: true 
+          }, { quoted: msg });
+
+          fs.unlinkSync(tempVideo);
+          fs.unlinkSync(tempAudio);
+          await sock.sendMessage(senderId, { react: { text: "🔊", key: msg.key } });
+        } catch (e) {
+          console.error("Audio Extraction Error:", e);
+          await sock.sendMessage(senderId, { text: "⚠️ Could not extract audio from this video." }, { quoted: msg });
+        }
         return;
       }
 
@@ -1073,6 +1163,60 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
           react: { text: "✨", key: msg.key },
         });
         return;
+      }
+
+      // 🎙️ HEARING: Voice Note Transcription (Handles incoming PTT)
+      if (isAudioMessage) {
+        try {
+          const buffer = await downloadMediaMessage(msg, "buffer", {}, { reuploadRequest: sock.updateMediaMessage });
+          const tempAudio = `./downloads/voice_in_${Date.now()}.ogg`;
+          fs.writeFileSync(tempAudio, buffer);
+
+          const response = await fetchWithTimeout("http://localhost:8080/transcribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ file_path: tempAudio }),
+          });
+
+          const data = await response.json();
+          text = data.text; // Use the transcription as the text input for the AI
+          
+          await sock.sendMessage(senderId, { text: `🎙️ *I heard:* "_${text}_"` }, { quoted: msg });
+          fs.unlinkSync(tempAudio);
+          
+          // Now proceed to the Normal Chat logic with the transcribed text
+        } catch (e) {
+          console.error("Transcription Failed:", e);
+          return; // Stop if transcription fails
+        }
+      }
+
+      // 📄 READING: Document Analysis (Specifically PDFs)
+      if (isDocumentMessage && msg.message.documentMessage.mimetype === "application/pdf") {
+        try {
+          const buffer = await downloadMediaMessage(msg, "buffer", {}, { reuploadRequest: sock.updateMediaMessage });
+          const tempPDF = `./downloads/doc_in_${Date.now()}.pdf`;
+          fs.writeFileSync(tempPDF, buffer);
+
+          const pdfPrompt = text || "Analyze this document deeply and philosophically.";
+          
+          const response = await fetchWithTimeout("http://localhost:8080/read_pdf", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ file_path: tempPDF, prompt: pdfPrompt }),
+          });
+
+          const data = await response.json();
+          await sock.sendMessage(senderId, { text: `📄 *Document Insight*\n\n${data.response}` }, { quoted: msg });
+          
+          fs.unlinkSync(tempPDF);
+          await sock.sendMessage(senderId, { react: { text: "📖", key: msg.key } });
+          return;
+        } catch (e) {
+          console.error("PDF Reading Error:", e);
+          await sock.sendMessage(senderId, { text: "⚠️ I could not parse this document. Is it too large or encrypted?" }, { quoted: msg });
+          return;
+        }
       }
 
       // 🧠 NORMAL CHAT: Conversational Memory with Context via Python
