@@ -530,7 +530,7 @@ You must return ONLY a valid JSON object. Do not include markdown code blocks. F
       const hasVideo = isVideoMessage || isQuotedVideo;
 
       // Decision: Should the bot reply?
-      const shouldReply = !isGroup || isMentioned || isRepliedToBot || isAudioMessage;
+      const shouldReply = !isGroup || isMentioned || isRepliedToBot || isAudioMessage || isDocumentMessage;
       
       console.log(`📩 Message from ${senderId} [Group: ${isGroup}, Type: ${messageType}]`);
       console.log(`🔍 Mentions: [${mentionedJids}], RepliedTo: ${participant}`);
