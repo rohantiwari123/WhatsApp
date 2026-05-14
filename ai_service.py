@@ -102,6 +102,7 @@ class SummarizeRequest(BaseModel):
 
 class YouTubeRequest(BaseModel):
     url: str
+    audio_only: Optional[bool] = False
 
 class NewsRequest(BaseModel):
     topic: str
@@ -436,12 +437,15 @@ async def process_youtube(request: YouTubeRequest):
         import yt_dlp
         import uuid
         
+        url_or_search = request.url
+        if not url_or_search.startswith(("http://", "https://")):
+            url_or_search = f"ytsearch:{url_or_search}"
+
         file_id = str(uuid.uuid4())
         # Use absolute path for downloads
         output_tmpl = os.path.join(DOWNLOADS_DIR, f"{file_id}.%(ext)s")
         
         ydl_opts = {
-            'format': 'best[ext=mp4]/best',
             'outtmpl': output_tmpl,
             'max_filesize': 50 * 1024 * 1024, # Limit to 50MB
             'quiet': True,
@@ -457,12 +461,35 @@ async def process_youtube(request: YouTubeRequest):
             'nocheckcertificate': True,
             'geo_bypass': True,
         }
+
+        if request.audio_only:
+            ydl_opts.update({
+                'format': 'bestaudio/best',
+                'postprocessors': [{
+                    'key': 'FFmpegExtractAudio',
+                    'preferredcodec': 'mp3',
+                    'preferredquality': '192',
+                }],
+            })
+        else:
+            ydl_opts.update({
+                'format': 'best[ext=mp4]/best',
+            })
         
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(request.url, download=True)
-            title = info.get('title', 'video')
+            info = ydl.extract_info(url_or_search, download=True)
+            if 'entries' in info:
+                # It's a search result
+                info = info['entries'][0]
+            
+            title = info.get('title', 'media')
             filename = ydl.prepare_filename(info)
-            # Ensure it's the actual downloaded file name (sometimes extension changes)
+            
+            # For audio, the extension might change to mp3 due to postprocessor
+            if request.audio_only:
+                filename = os.path.splitext(filename)[0] + ".mp3"
+
+            # Ensure it's the actual downloaded file name
             if not os.path.exists(filename):
                 # Search for any file with the file_id in downloads/
                 for f in os.listdir(DOWNLOADS_DIR):

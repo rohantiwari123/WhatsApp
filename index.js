@@ -624,10 +624,12 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 7.  */sticker* - (Reply to image/video) Create a sticker.
 8.  */audio* - (Reply to video) Extract audio soul.
 9.  */summarize [URL]* - Scrapes a webpage for a philosophical TL;DR.
-10. */yt [YouTube URL]* - Downloads and sends a YouTube video.
-11. */fact* - Get a deep scientific or philosophical fact.
-12. */ping* - Check if the bot is alive.
-13. */help* - Shows this guide.
+10. */yt [Name/URL]* - Downloads and sends a YouTube video.
+11. */song [Name/URL]* - Downloads a song/audio from YouTube.
+12. */ringtone [Name/URL]* - Downloads audio from YouTube.
+13. */fact* - Get a deep scientific or philosophical fact.
+14. */ping* - Check if the bot is alive.
+15. */help* - Shows this guide.
 
 *GROUP & ADMIN FEATURES:*
 1.  */everyone* - Tag all members (Admins only).
@@ -795,6 +797,73 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
             senderId,
             {
               text: "⚠️ वीडियो डाउनलोड करने में समस्या आई है। कृपया सुनिश्चित करें कि लिंक सही है और वीडियो 50MB से छोटा है।",
+            },
+            { quoted: msg }
+          );
+          await sock.sendMessage(senderId, {
+            react: { text: "❌", key: msg.key },
+          });
+          return;
+        }
+      }
+
+      // 🎵 COMMAND: /song or /ringtone (Download YouTube Audio)
+      if (
+        text.toLowerCase().startsWith("/song ") ||
+        text.toLowerCase().startsWith("/ringtone ")
+      ) {
+        const query = text.toLowerCase().startsWith("/song ")
+          ? text.slice(6).trim()
+          : text.slice(10).trim();
+        if (!query) return;
+
+        await sock.sendMessage(
+          senderId,
+          {
+            text: "⏳ *Downloading Audio:* Searching and fetching your audio... Please wait.",
+          },
+          { quoted: msg }
+        );
+
+        try {
+          const response = await fetchWithTimeout("http://localhost:8080/youtube", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url: query, audio_only: true }),
+          });
+
+          if (!response.ok) throw new Error("Download Error");
+
+          const data = await response.json();
+          const audioPath = data.path;
+          const audioTitle = data.title;
+
+          if (fs.existsSync(audioPath)) {
+            await sock.sendMessage(
+              senderId,
+              {
+                audio: fs.readFileSync(audioPath),
+                mimetype: 'audio/mpeg',
+                fileName: `${audioTitle}.mp3`
+              },
+              { quoted: msg }
+            );
+
+            // Clean up file after sending
+            fs.unlinkSync(audioPath);
+            await sock.sendMessage(senderId, {
+              react: { text: "🎵", key: msg.key },
+            });
+          } else {
+            throw new Error("File not found after download");
+          }
+          return;
+        } catch (e) {
+          console.error(e);
+          await sock.sendMessage(
+            senderId,
+            {
+              text: "⚠️ ऑडियो डाउनलोड करने में समस्या आई है। कृपया सुनिश्चित करें कि लिंक या नाम सही है।",
             },
             { quoted: msg }
           );
