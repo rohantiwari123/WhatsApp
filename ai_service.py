@@ -1,6 +1,7 @@
 
 import os
 import requests
+import subprocess
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from typing import List, Optional
@@ -312,13 +313,29 @@ async def process_tts(request: TTSRequest):
         import uuid
         
         file_id = str(uuid.uuid4())
-        # Use absolute path to avoid issues with working directory
-        filename = os.path.join(DOWNLOADS_DIR, f"{file_id}.mp3")
+        mp3_filename = os.path.join(DOWNLOADS_DIR, f"{file_id}.mp3")
+        ogg_filename = os.path.join(DOWNLOADS_DIR, f"{file_id}.ogg")
         
-        tts = gTTS(text=request.text, lang='hi', slow=False) # Or 'en', but 'hi' handles both decently
-        tts.save(filename)
+        tts = gTTS(text=request.text, lang='hi', slow=False)
+        tts.save(mp3_filename)
         
-        return {"response": "Success", "path": filename}
+        # Convert to OGG Opus for native WhatsApp voice note support
+        try:
+            subprocess.run([
+                "ffmpeg", "-i", mp3_filename,
+                "-c:a", "libopus",
+                "-page_duration", "20000", # Helps with seeking/duration
+                ogg_filename, "-y"
+            ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        except Exception as conv_error:
+            print(f"Conversion Error: {conv_error}")
+            return {"response": "Success", "path": mp3_filename} # Fallback
+            
+        # Clean up mp3
+        if os.path.exists(mp3_filename) and os.path.exists(ogg_filename):
+            os.remove(mp3_filename)
+        
+        return {"response": "Success", "path": ogg_filename if os.path.exists(ogg_filename) else mp3_filename}
     except Exception as e:
         print(f"TTS Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))

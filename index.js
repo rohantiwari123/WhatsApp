@@ -907,7 +907,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
               senderId,
               {
                 audio: fs.readFileSync(audioPath),
-                mimetype: 'audio/mp4', // More compatible for PTT
+                mimetype: 'audio/ogg; codecs=opus', // Native WhatsApp voice note format
                 ptt: true, // Send as a voice note
               },
               { quoted: msg }
