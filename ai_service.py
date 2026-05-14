@@ -104,6 +104,9 @@ class QuizRequest(BaseModel):
 class TTSRequest(BaseModel):
     text: str
 
+class GroupSummaryRequest(BaseModel):
+    messages: List[str]
+
 system_instruction = """You are the official AI guide for 'Beyond the Verse'. Answer deep questions about science, the universe, consciousness, and existential philosophy.
   
 CRITICAL WHATSAPP FORMATTING RULES:
@@ -263,6 +266,25 @@ async def process_fact():
         return {"response": result.content}
     except Exception as e:
         print(f"Fact Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/group_summary")
+async def process_group_summary(request: GroupSummaryRequest):
+    try:
+        chat_history = "\n".join(request.messages)
+        summary_prompt = f"""You are 'Beyond the Verse' AI. Below is a transcript of a WhatsApp group chat. 
+        Provide a concise, deep, and slightly philosophical summary of what was discussed. 
+        Identify the main 'vibe' of the conversation and any key insights shared.
+        
+        Transcript:
+        {chat_history}
+        
+        Strictly follow WhatsApp formatting (*bold*, _italic_)."""
+        
+        result = chat_model.invoke([HumanMessage(content=summary_prompt)])
+        return {"response": result.content}
+    except Exception as e:
+        print(f"Group Summary Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/youtube")

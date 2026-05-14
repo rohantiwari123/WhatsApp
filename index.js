@@ -38,6 +38,7 @@ const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 // ----------------------------------------------------
 const SESSION_FILE = "./user_sessions.json";
 let userSessions = new Map();
+let groupMsgBuffer = new Map(); // Store last 20 messages per group for summary
 
 // Wait for Python Backend to be ready
 async function waitForBackend() {
@@ -233,6 +234,25 @@ async function connectToWhatsApp() {
   });
 
   sock.ev.on("creds.update", saveCreds);
+
+  // --- Group Events: Auto-Welcome ---
+  sock.ev.on("group-participants.update", async (update) => {
+    if (update.action === "add") {
+      const groupMetadata = await sock.groupMetadata(update.id);
+      for (const participant of update.participants) {
+        const welcomeMsg = `🌌 *Welcome to Beyond the Verse!*
+        
+नमस्ते @${participant.split("@")[0]}! आप इस ब्रह्मांडीय समुदाय का हिस्सा बन चुके हैं। 
+
+यहाँ हम विज्ञान, दर्शन और अस्तित्व के गहरे रहस्यों पर चर्चा करते हैं। शुरू करने के लिए समूह में अपना कोई गहरा सवाल साझा करें या */help* टाइप करें। ✨`;
+
+        await sock.sendMessage(update.id, {
+          text: welcomeMsg,
+          mentions: [participant],
+        });
+      }
+    }
+  });
 
   // --- Pairing Code Logic ---
   if (!sock.authState.creds.registered) {
@@ -489,6 +509,15 @@ You must return ONLY a valid JSON object. Do not include markdown code blocks. F
 
       console.log(`💬 User (${senderId}): ${text || "[Image/Media]"}`);
 
+      // Buffer group messages for summary
+      if (isGroup && text && !text.startsWith("/")) {
+        if (!groupMsgBuffer.has(senderId)) groupMsgBuffer.set(senderId, []);
+        const buffer = groupMsgBuffer.get(senderId);
+        const participantName = msg.pushName || msg.key.participant?.split("@")[0] || "User";
+        buffer.push(`${participantName}: ${text}`);
+        if (buffer.length > 20) buffer.shift(); // Keep last 20 messages
+      }
+
       // UX Feature: React with an hourglass to indicate processing
       await sock.sendMessage(senderId, { react: { text: "⏳", key: msg.key } });
 
@@ -519,6 +548,11 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 10. */ping* - Check if the bot is alive.
 11. */help* - Shows this guide.
 
+*GROUP FEATURES:*
+1.  */everyone* - Tag all members (Admins only).
+2.  */summarize_chat* - AI summary of recent group discussion.
+3.  *Auto-Welcome:* Greets new members beautifully.
+
 *FEATURES:*
 *   *Natural Chat:* Just talk to me! I have persistent memory.
 *   *Vision Analysis:* Send me any image with a question.
@@ -528,6 +562,44 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 
         await sock.sendMessage(senderId, { text: helpMessage }, { quoted: msg });
         await sock.sendMessage(senderId, { react: { text: "📖", key: msg.key } });
+        return;
+      }
+
+      // 📢 COMMAND: /everyone (Tag all members)
+      if (text.toLowerCase() === "/everyone" && isGroup) {
+        try {
+          const groupMetadata = await sock.groupMetadata(senderId);
+          const participants = groupMetadata.participants.map(p => p.id);
+          const mentionText = `📢 *Attention Everyone!* \n\nTagged by: @${msg.key.participant?.split("@")[0]}`;
+          
+          await sock.sendMessage(senderId, { text: mentionText, mentions: participants }, { quoted: msg });
+          await sock.sendMessage(senderId, { react: { text: "📢", key: msg.key } });
+        } catch (e) {
+          console.error("Everyone Error:", e);
+        }
+        return;
+      }
+
+      // 📝 COMMAND: /summarize_chat (AI Summary of last 20 messages)
+      if (text.toLowerCase() === "/summarize_chat" && isGroup) {
+        const buffer = groupMsgBuffer.get(senderId) || [];
+        if (buffer.length < 5) {
+          await sock.sendMessage(senderId, { text: "⚠️ समरी बनाने के लिए अभी पर्याप्त मैसेज नहीं हैं।" }, { quoted: msg });
+          return;
+        }
+
+        try {
+          const response = await fetchWithTimeout("http://localhost:8080/group_summary", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ messages: buffer }),
+          });
+          const data = await response.json();
+          await sock.sendMessage(senderId, { text: `📝 *Group Insight Summary*\n\n${data.response}` }, { quoted: msg });
+          await sock.sendMessage(senderId, { react: { text: "📝", key: msg.key } });
+        } catch (e) {
+          console.error("Summary Error:", e);
+        }
         return;
       }
 
