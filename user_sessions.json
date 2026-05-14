@@ -87,45 +87,21 @@
     "history": [
       {
         "role": "user",
-        "content": "Hi"
-      },
-      {
-        "role": "assistant",
-        "content": "*Hello Again Rohan*\nWelcome back! I see you're starting fresh again. Don't worry, I still remember our previous conversations and your name, Rohan. What's on your mind today? Want to explore some _cosmic ideas_, discuss _philosophy_, or maybe something new? 🌌"
-      },
-      {
-        "role": "user",
-        "content": "Hi"
-      },
-      {
-        "role": "assistant",
-        "content": "*Hello Rohan*\nIt seems like we're starting anew again. No worries, I'm here to chat and explore the vast expanse of ideas with you. Your name is still remembered, and I'm ready to dive into discussions on _existence_, _consciousness_, or anything that piques your interest. What's your thought for the day, Rohan? 🧠"
-      },
-      {
-        "role": "user",
-        "content": "Hi"
-      },
-      {
-        "role": "assistant",
-        "content": "*Rohan, let's dive deeper*\nSince we've been discussing _existential philosophy_ and the _nature of reality_ before, I'd like to ask: What aspect of _consciousness_ or the _universe_ would you like to explore further? Is it the _mysteries of black holes_, the _origin of life_, or perhaps something more _philosophical_? 🌌"
-      },
-      {
-        "role": "user",
-        "content": "Gand"
-      },
-      {
-        "role": "assistant",
-        "content": "*Gandhi, a great soul*\nRohan, it seems like you're thinking of Mahatma Gandhi. A man of great wisdom, compassion, and conviction. His philosophy of _non-violence_ and _simple living_ still inspires many. What is it about Gandhi that resonates with you? Is it his _spirit of non-violent resistance_, his _vision for a harmonious world_, or something else? 🙏"
-      },
-      {
-        "role": "user",
         "content": "Sex"
       },
       {
         "role": "assistant",
         "content": "*A delicate topic, Rohan*\nLet's approach this with sensitivity and respect. In the context of our previous discussions on _existence_ and _human consciousness_, sex can be seen as a fundamental aspect of human experience. It's a complex interplay of _biology_, _emotions_, and _relationships_. From a philosophical standpoint, it raises questions about _intimacy_, _connection_, and the _human condition_. What specific aspect of this topic would you like to explore, Rohan? 🧠"
+      },
+      {
+        "role": "user",
+        "content": "Hi"
+      },
+      {
+        "role": "assistant",
+        "content": "*Rohan, a new beginning*\nIt seems like we've hit the refresh button again. No worries, let's start anew. I'm here to listen, explore, and learn with you. What's been on your mind lately? Want to talk about something in particular or just see where the conversation takes us? *Take a deep breath*, and let's dive into the unknown together... 🌌"
       }
     ],
-    "summary": "**Key Facts about the User:** Rohan is the user's name, and they are bilingual in English and Hindi. \n**Ongoing Discussion Topics:** Existential philosophy, the nature of reality, consciousness, and the universe."
+    "summary": "**Key Facts about the User:** Rohan is the user's name, and they are bilingual in English and Hindi. \n**Ongoing Discussion Topics:** Existential philosophy, the nature of reality, consciousness, and the universe, with recent interests in Mahatma Gandhi's philosophy and human aspects such as sex and relationships."
   }
 }
