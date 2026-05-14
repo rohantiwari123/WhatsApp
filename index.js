@@ -39,6 +39,8 @@ const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 const SESSION_FILE = "./user_sessions.json";
 let userSessions = new Map();
 let groupMsgBuffer = new Map(); // Store last 20 messages per group for summary
+let messageLog = new Map(); // For anti-spam tracking
+const TOXIC_WORDS = ["abuse1", "abuse2"]; // Example placeholders, will use a broader check logic
 
 // Wait for Python Backend to be ready
 async function waitForBackend() {
@@ -373,6 +375,14 @@ async function connectToWhatsApp() {
       );
 
       try {
+        const TARGET_GROUP_JID = "120363427798992883@g.us";
+        
+        // Open Group for dialogue (Sunrise)
+        try {
+          await sock.groupSettingUpdate(TARGET_GROUP_JID, 'not_announcement');
+          await sock.sendMessage(TARGET_GROUP_JID, { text: "🌅 *The Dawn of Inquiry:* The group is now open for conscious dialogue. Let our words reflect clarity and purpose. ✨" });
+        } catch (e) { console.error("Error opening group:", e); }
+
         const pollPrompt = `Create a deep, thought-provoking multiple-choice question for the 'Beyond the Verse' WhatsApp community. 
 The topic MUST blend Science (quantum mechanics, neuroscience, etc.), Philosophy (existentialism, consciousness), and practical human life.
 
@@ -395,7 +405,6 @@ You must return ONLY a valid JSON object. Do not include markdown code blocks. F
           .trim();
 
         const pollData = JSON.parse(responseText);
-        const TARGET_GROUP_JID = "120363427798992883@g.us";
 
         await sock.sendMessage(TARGET_GROUP_JID, {
           poll: {
@@ -407,6 +416,22 @@ You must return ONLY a valid JSON object. Do not include markdown code blocks. F
         console.log("✅ सुबह का पोल सफलतापूर्वक ग्रुप में भेज दिया गया है!");
       } catch (error) {
         console.error("❌ Poll Generation Error:", error);
+      }
+    },
+    { timezone: "Asia/Kolkata" }
+  );
+
+  // 🌙 QUIET MODE: Close group at 11 PM
+  cron.schedule(
+    "0 23 * * *",
+    async () => {
+      console.log("🌙 रात के 11 बज गए हैं! समूह में मौन का समय है।");
+      try {
+        const TARGET_GROUP_JID = "120363427798992883@g.us";
+        await sock.groupSettingUpdate(TARGET_GROUP_JID, 'announcement');
+        await sock.sendMessage(TARGET_GROUP_JID, { text: "🌙 *The Night of Silence:* Discussion is now paused for rest and reflection. We shall reunite at dawn. Let your mind find peace in stillness. ✨" });
+      } catch (e) {
+        console.error("Error closing group for night:", e);
       }
     },
     { timezone: "Asia/Kolkata" }
@@ -441,6 +466,37 @@ You must return ONLY a valid JSON object. Do not include markdown code blocks. F
       const messageType = Object.keys(msg.message)[0];
       const cleanBotNumber = myId.split(":")[0].split("@")[0];
       const isGroup = senderId.endsWith("@g.us");
+
+      // ----------------------------------------------------
+      // 🛡️ ADMIN FEATURE: ANTI-SPAM & TOXICITY (GROUP ONLY)
+      // ----------------------------------------------------
+      if (isGroup && text && !msg.key.fromMe) {
+        const participant = msg.key.participant;
+        
+        // Anti-Spam (Detection of rapid messages)
+        const now = Date.now();
+        if (!messageLog.has(participant)) messageLog.set(participant, []);
+        const userLog = messageLog.get(participant);
+        userLog.push(now);
+        
+        // Remove old entries (>10 seconds)
+        const recentMessages = userLog.filter(time => now - time < 10000);
+        messageLog.set(participant, recentMessages);
+        
+        if (recentMessages.length > 5) {
+          await sock.sendMessage(senderId, { delete: msg.key });
+          await sock.sendMessage(senderId, { text: `⚠️ @${participant.split("@")[0]}, choose your words with awareness; unnecessary noise is merely a symptom of a restless mind. (Spam Detected)`, mentions: [participant] });
+          return;
+        }
+
+        // Toxicity Filter (Basic keywords for now, can be AI-expanded)
+        const containsToxicity = TOXIC_WORDS.some(word => text.toLowerCase().includes(word));
+        if (containsToxicity) {
+          await sock.sendMessage(senderId, { delete: msg.key });
+          await sock.sendMessage(senderId, { text: `⚠️ @${participant.split("@")[0]}, toxicity only consumes the one who holds it. Let our space remain sacred. (Inappropriate Content)`, mentions: [participant] });
+          return;
+        }
+      }
 
       // Extract Context & Mentions
       const contextInfo =
@@ -584,12 +640,43 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         try {
           const groupMetadata = await sock.groupMetadata(senderId);
           const participants = groupMetadata.participants.map(p => p.id);
-          const mentionText = `📢 *Attention Everyone!* \n\nTagged by: @${msg.key.participant?.split("@")[0]}`;
+          const isAdmin = groupMetadata.participants.find(p => p.id === msg.key.participant)?.admin;
           
+          if (!isAdmin) {
+            await sock.sendMessage(senderId, { text: "⚠️ Only those with the responsibility of an Admin can use this call." }, { quoted: msg });
+            return;
+          }
+
+          const mentionText = `📢 *Attention Everyone!* \n\nTagged by: @${msg.key.participant?.split("@")[0]}`;
           await sock.sendMessage(senderId, { text: mentionText, mentions: participants }, { quoted: msg });
           await sock.sendMessage(senderId, { react: { text: "📢", key: msg.key } });
         } catch (e) {
           console.error("Everyone Error:", e);
+        }
+        return;
+      }
+
+      // 👢 COMMAND: /kick (Remove member - Admin Only)
+      if (text.toLowerCase().startsWith("/kick ") && isGroup) {
+        try {
+          const groupMetadata = await sock.groupMetadata(senderId);
+          const isAdmin = groupMetadata.participants.find(p => p.id === msg.key.participant)?.admin;
+          
+          if (!isAdmin) {
+            await sock.sendMessage(senderId, { text: "⚠️ You do not have the authority to decide who stays or leaves." }, { quoted: msg });
+            return;
+          }
+
+          const mentionedJids = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+          if (mentionedJids.length === 0) {
+            await sock.sendMessage(senderId, { text: "⚠️ Mention the individual who has chosen to walk a different path." }, { quoted: msg });
+            return;
+          }
+
+          await sock.groupParticipantsUpdate(senderId, mentionedJids, "remove");
+          await sock.sendMessage(senderId, { text: `✅ Decisive action taken. The sanctity of the space is preserved.` });
+        } catch (e) {
+          console.error("Kick Error:", e);
         }
         return;
       }
