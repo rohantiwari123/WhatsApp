@@ -1,3 +1,4 @@
 {
-    "editor.lineHeight": -0.5
+    "editor.lineHeight": -0.5,
+    "python.analysis.typeCheckingMode": "basic"
 }
