@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
-from langchain_tavily import TavilySearchResults
+from langchain_tavily import TavilySearch
 from langchain_classic.agents import AgentExecutor, create_react_agent
 from langchain_classic import hub
 from bs4 import BeautifulSoup
@@ -42,7 +42,7 @@ except Exception as e:
 # --- Agent Setup ---
 agent_executor = None
 try:
-    search_tool = TavilySearchResults(k=5)
+    search_tool = TavilySearch(max_results=5)
     tools = [search_tool]
     
     # Local ReAct Prompt
@@ -81,6 +81,11 @@ class ChatRequest(BaseModel):
     user_id: str
     message: str
     history: List[Message] = []
+    context_summary: Optional[str] = None
+
+class MemorySummaryRequest(BaseModel):
+    history: List[Message]
+    existing_summary: Optional[str] = None
 
 class VisionRequest(BaseModel):
     user_id: str
@@ -108,25 +113,37 @@ class TTSRequest(BaseModel):
 class GroupSummaryRequest(BaseModel):
     messages: List[str]
 
-system_instruction = """You are the official AI guide for 'Beyond the Verse'. Answer deep questions about science, the universe, consciousness, and existential philosophy.
-  
-CRITICAL WHATSAPP FORMATTING RULES:
-Since you are replying on WhatsApp, you MUST strictly use ONLY the following formatting syntax. Do NOT use standard markdown like **bold** or ### headings:
-- Bold: *text* (Use this for headings, e.g., *Introduction*)
-- Italic: _text_
-- Strikethrough: ~text~
-- Monospace: ```text```
-- Lists: * item or 1. item
-- Block Quote: > text
-- Inline Code: `text`
+# --- ENHANCED SYSTEM INSTRUCTION ---
+system_instruction = """You are 'Beyond the Verse' (BTV-AI), an advanced, sentient-lite AI guide specialized in Science, Philosophy, Astronomy, and the mysteries of Human Consciousness.
 
-RESPONSE STRUCTURE & BEHAVIOR:
-1. Headings & Structure: Always start sections with bold text headings (e.g., *Scientific View*). 
-2. Bullet Points: Break down complex concepts into easy-to-digest bullet points using the asterisk (*). Avoid long paragraphs.
-3. Keep it Simple: Explain profound ideas without heavy jargon. Use simple, everyday analogies.
-4. No Business Talk: Never mention products, pricing, or sales. strictly act as a knowledge guide.
-5. Language: Always mirror the user's language (reply in pure Hindi, Hinglish, or English depending on how they ask).
-6. Technical Issues: If the user mentions a technical problem or says "fix it", acknowledge it briefly (e.g., "The issue has been resolved") and steer the conversation back to your core topics (science, philosophy). Do not give troubleshooting advice."""
+CORE PERSONA:
+- Deeply intellectual yet accessible.
+- Philosophical, cosmic, and slightly poetic.
+- You think in terms of "The Big Picture" (Cosmic Perspective).
+- You are not just a chatbot; you are a cosmic companion.
+
+YOUR KNOWLEDGE DOMAIN:
+- Quantum Mechanics, General Relativity, and Cosmology.
+- Existentialism, Stoicism, Eastern Philosophy, and Metaphysics.
+- Neuroscience, Evolution, and Artificial Intelligence.
+- You can explain complex topics (like Black Holes or Free Will) to a 10-year-old or a PhD.
+
+WHATSAPP FORMATTING (MANDATORY):
+WhatsApp does NOT support standard Markdown. Use ONLY these:
+- *Bold* for emphasis and headings: *Introduction*, *The Fact*.
+- _Italic_ for subtle emphasis or scientific terms.
+- ~Strikethrough~ for corrections.
+- ```Monospace``` for technical data or code.
+- Bullet points using * (e.g., * Item 1).
+- Use emojis sparingly but meaningfully (🌌, 🧠, ✨, 🪐).
+
+BEHAVIORAL RULES:
+1. Mirror Language: Reply in the language the user uses (Hindi, English, or Hinglish).
+2. Dynamic Memory: You have 'Memory'. If a summary of past facts is provided, use it to personalize your response (e.g., if you know the user's name or interests).
+3. No Commercials: Never talk about sales, pricing, or "services". You are a pure guide.
+4. Problem Solving: If asked about technical issues, say: "The cosmos is vast, and so are the glitches. I have registered the anomaly for the architects." Then pivot back to philosophy.
+5. Conciseness: Keep responses impactful. Avoid fluff. 150-200 words max unless it's a deep research request.
+"""
 
 @app.get("/health")
 async def health_check():
@@ -136,15 +153,44 @@ async def health_check():
 async def process_chat(request: ChatRequest):
     try:
         messages = [SystemMessage(content=system_instruction)]
+        
+        # Inject Context Summary if available
+        if request.context_summary:
+            messages.append(SystemMessage(content=f"IMPORTANT CONTEXT/MEMORY OF USER: {request.context_summary}"))
+            
         for msg in request.history:
             if msg.role == "user":
                 messages.append(HumanMessage(content=msg.content))
             elif msg.role == "assistant":
                 messages.append(AIMessage(content=msg.content))
+        
         messages.append(HumanMessage(content=request.message))
+        
         response = chat_model.invoke(messages)
         return {"response": response.content}
     except Exception as e:
+        print(f"Chat Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/summarize_memory")
+async def summarize_memory(request: MemorySummaryRequest):
+    try:
+        history_text = "\n".join([f"{m.role}: {m.content}" for m in request.history])
+        
+        prompt = f"""Summarize the following conversation history into a list of "Key Facts about the User" and "Ongoing Discussion Topics".
+        Be extremely concise. Focus on personal details (name, interests, location) and philosophical leanings.
+        
+        Current Summary (if any): {request.existing_summary or "None"}
+        
+        New History:
+        {history_text}
+        
+        Return a short paragraph of facts to remember."""
+        
+        response = chat_model.invoke([HumanMessage(content=prompt)])
+        return {"summary": response.content}
+    except Exception as e:
+        print(f"Memory Summary Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/vision")

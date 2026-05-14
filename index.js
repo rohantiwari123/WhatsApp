@@ -977,10 +977,19 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       // 🧠 NORMAL CHAT: Conversational Memory with Context via Python
       if (!userSessions.has(senderId)) {
         console.log(`🆕 ${senderId} के लिए नई मेमोरी/सेशन शुरू किया गया।`);
-        userSessions.set(senderId, []);
+        userSessions.set(senderId, { history: [], summary: "" });
       }
 
-      const history = userSessions.get(senderId);
+      let session = userSessions.get(senderId);
+      
+      // Migration: If session is still just an array (old format), convert it
+      if (Array.isArray(session)) {
+          session = { history: session, summary: "" };
+          userSessions.set(senderId, session);
+      }
+
+      const history = session.history || [];
+      const summary = session.summary || "";
 
       // Clean history to remove system prompts added by the old system
       const cleanHistory = history.filter((msg) => msg.role !== "system");
@@ -993,6 +1002,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
             user_id: senderId,
             message: text,
             history: cleanHistory,
+            context_summary: summary
           }),
         });
 
@@ -1007,12 +1017,34 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         cleanHistory.push({ role: "user", content: text });
         cleanHistory.push({ role: "assistant", content: aiResponse });
 
-        // Keep context limited to last 15 messages to save tokens and avoid overflow
-        if (cleanHistory.length > 14) {
-          cleanHistory.splice(0, 2);
+        // Memory Summarization Logic (ChatGPT-like memory)
+        // If history gets long, we summarize it and keep the summary, then trim history
+        if (cleanHistory.length > 10) {
+            console.log(`♻️ Summarizing memory for ${senderId}...`);
+            try {
+                const summaryResponse = await fetchWithTimeout("http://localhost:8080/summarize_memory", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        history: cleanHistory,
+                        existing_summary: summary
+                    }),
+                });
+                if (summaryResponse.ok) {
+                    const summaryData = await summaryResponse.json();
+                    session.summary = summaryData.summary;
+                    console.log(`✅ New Memory Summary: ${session.summary}`);
+                }
+            } catch (sumErr) {
+                console.error("Summarization failed:", sumErr);
+            }
+            
+            // Keep only the last 4 messages for immediate context, rely on summary for the rest
+            cleanHistory.splice(0, cleanHistory.length - 4);
         }
 
-        userSessions.set(senderId, cleanHistory);
+        session.history = cleanHistory;
+        userSessions.set(senderId, session);
         saveSessions();
 
         await sock.sendMessage(senderId, { text: aiResponse }, { quoted: msg });
