@@ -621,21 +621,25 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 4.  */quiz [topic]* - Generate an interactive 3-question quiz.
 5.  */tts [text]* - Convert text to a voice message (Speech).
 6.  */imagine [prompt]* - Generates a high-quality AI image.
-7.  */summarize [URL]* - Scrapes a webpage for a philosophical TL;DR.
-8.  */yt [YouTube URL]* - Downloads and sends a YouTube video directly.
-9.  */fact* - Get a deep scientific or philosophical fact.
-10. */ping* - Check if the bot is alive.
-11. */help* - Shows this guide.
+7.  */sticker* - (Reply to image/video) Create a sticker.
+8.  */audio* - (Reply to video) Extract audio soul.
+9.  */summarize [URL]* - Scrapes a webpage for a philosophical TL;DR.
+10. */yt [YouTube URL]* - Downloads and sends a YouTube video.
+11. */fact* - Get a deep scientific or philosophical fact.
+12. */ping* - Check if the bot is alive.
+13. */help* - Shows this guide.
 
-*GROUP FEATURES:*
+*GROUP & ADMIN FEATURES:*
 1.  */everyone* - Tag all members (Admins only).
-2.  */summarize_chat* - AI summary of recent group discussion.
-3.  *Auto-Welcome:* Greets new members beautifully.
+2.  */kick @user* - Remove a member (Admins only).
+3.  */summarize_chat* - AI summary of recent group discussion.
+4.  *Anti-Spam/Toxicity:* Automatic guarding of the space.
+5.  *Quiet Mode:* Automatic silence at night (11 PM - 6 AM).
 
-*FEATURES:*
-*   *Natural Chat:* Just talk to me! I have persistent memory.
-*   *Vision Analysis:* Send me any image with a question.
-*   *Language:* I speak Hindi, Hinglish, and English.
+*MULTIMEDIA Perception:*
+*   *Voice Notes:* Send me a voice note; I will listen and reply.
+*   *PDFs:* Send a PDF with a question in the caption for analysis.
+*   *Vision:* Send an image with a question for analysis.
 
 *Note:* In groups, please mention me or reply to my message to get a response.`;
 

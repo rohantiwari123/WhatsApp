@@ -405,7 +405,12 @@ async def process_read_pdf(request: PDFRequest):
         with open(request.file_path, "rb") as f:
             reader = PyPDF2.PdfReader(f)
             for page in reader.pages:
-                text += page.extract_text() + "\n"
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
+        
+        if not text.strip():
+            return {"response": "⚠️ I could not find any readable text in this document. It might be an image-only PDF or scanned without OCR."}
         
         # Limit text to avoid token issues (approx 12k chars)
         clean_text = text[:12000]
