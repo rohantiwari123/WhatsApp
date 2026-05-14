@@ -7,6 +7,7 @@ langchain-core
 langchain-community
 langchain-classic
 tavily-python
+langchain-tavily
 beautifulsoup4
 yt-dlp
 python-dotenv

@@ -5,7 +5,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
-from langchain_community.tools.tavily_search import TavilySearchResults
+from langchain_tavily import TavilySearchResults
 from langchain_classic.agents import AgentExecutor, create_react_agent
 from langchain_classic import hub
 from bs4 import BeautifulSoup
@@ -15,8 +15,9 @@ load_dotenv()
 
 app = FastAPI(title="Beyond the Verse AI Core")
 
-# Ensure downloads directory exists
-os.makedirs("downloads", exist_ok=True)
+# Ensure downloads directory exists with absolute path
+DOWNLOADS_DIR = os.path.abspath("downloads")
+os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
 groq_api_key = os.getenv("GROQ_API_KEY")
 tavily_api_key = os.getenv("TAVILY_API_KEY")
@@ -248,7 +249,8 @@ async def process_tts(request: TTSRequest):
         import uuid
         
         file_id = str(uuid.uuid4())
-        filename = f"downloads/{file_id}.mp3"
+        # Use absolute path to avoid issues with working directory
+        filename = os.path.join(DOWNLOADS_DIR, f"{file_id}.mp3")
         
         tts = gTTS(text=request.text, lang='hi', slow=False) # Or 'en', but 'hi' handles both decently
         tts.save(filename)
@@ -294,7 +296,8 @@ async def process_youtube(request: YouTubeRequest):
         import uuid
         
         file_id = str(uuid.uuid4())
-        output_tmpl = f"downloads/{file_id}.%(ext)s"
+        # Use absolute path for downloads
+        output_tmpl = os.path.join(DOWNLOADS_DIR, f"{file_id}.%(ext)s")
         
         ydl_opts = {
             'format': 'best[ext=mp4]/best',
@@ -321,9 +324,9 @@ async def process_youtube(request: YouTubeRequest):
             # Ensure it's the actual downloaded file name (sometimes extension changes)
             if not os.path.exists(filename):
                 # Search for any file with the file_id in downloads/
-                for f in os.listdir("downloads"):
+                for f in os.listdir(DOWNLOADS_DIR):
                     if f.startswith(file_id):
-                        filename = os.path.join("downloads", f)
+                        filename = os.path.join(DOWNLOADS_DIR, f)
                         break
             
         return {"response": "Success", "path": filename, "title": title}

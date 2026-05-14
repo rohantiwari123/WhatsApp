@@ -880,7 +880,10 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
             body: JSON.stringify({ text: ttsText }),
           });
 
-          if (!response.ok) throw new Error("TTS Error");
+          if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(`TTS API Error: ${response.status} ${errorData.detail || ""}`);
+          }
 
           const data = await response.json();
           const audioPath = data.path;
@@ -890,24 +893,28 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
               senderId,
               {
                 audio: fs.readFileSync(audioPath),
-                mimetype: 'audio/mpeg',
+                mimetype: 'audio/mp4', // More compatible for PTT
                 ptt: true, // Send as a voice note
               },
               { quoted: msg }
             );
 
             // Clean up file after sending
-            fs.unlinkSync(audioPath);
+            try {
+              fs.unlinkSync(audioPath);
+            } catch (unlinkError) {
+              console.error("Failed to delete temporary audio file:", unlinkError);
+            }
             await sock.sendMessage(senderId, { react: { text: "🎙️", key: msg.key } });
           } else {
-            throw new Error("File not found after generation");
+            throw new Error(`Generated audio file not found at: ${audioPath}`);
           }
           return;
         } catch (e) {
-          console.error(e);
+          console.error("TTS Command Error:", e);
           await sock.sendMessage(
             senderId,
-            { text: "⚠️ वॉइस जनरेट करने में समस्या आ रही है।" },
+            { text: `⚠️ वॉइस जनरेट करने में समस्या आ रही है। (${e.message})` },
             { quoted: msg }
           );
           await sock.sendMessage(senderId, { react: { text: "❌", key: msg.key } });
