@@ -454,7 +454,7 @@ async def process_youtube(request: YouTubeRequest):
             'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['web', 'mweb', 'android', 'ios'],
+                    'player_client': ['android', 'ios', 'web', 'mweb'],
                     'player_skip': ['webpage', 'configs'],
                 }
             },
@@ -506,9 +506,14 @@ async def process_youtube(request: YouTubeRequest):
     except Exception as e:
         error_msg = str(e)
         print(f"YouTube Error: {error_msg}")
-        if "confirm you're not a bot" in error_msg or "sign in to confirm" in error_msg:
-            return {"response": "Error", "message": "YouTube has blocked this request due to bot detection. Try again later or with a different search term."}
-        raise HTTPException(status_code=500, detail=error_msg)
+        # Common bot detection or region restriction strings
+        bot_keywords = ["bot", "sign in", "confirm you're not", "cookies", "captcha", "unusual traffic"]
+        if any(k in error_msg.lower() for k in bot_keywords):
+            return {
+                "response": "Error", 
+                "message": "YouTube has detected me as a bot. 🛡️\n\n*Suggestions:*\n1. Try a different search term.\n2. Try again in a few minutes.\n3. Provide a direct link instead of a name."
+            }
+        return {"response": "Error", "message": f"Download failed: {error_msg[:100]}..."}
 
 if __name__ == "__main__":
     import uvicorn
