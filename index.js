@@ -769,6 +769,10 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
           if (!response.ok) throw new Error("Download Error");
 
           const data = await response.json();
+          if (data.response === "Error") {
+            await sock.sendMessage(senderId, { text: `⚠️ ${data.message}` }, { quoted: msg });
+            return;
+          }
           const videoPath = data.path;
           const videoTitle = data.title;
 
@@ -835,6 +839,10 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
           if (!response.ok) throw new Error("Download Error");
 
           const data = await response.json();
+          if (data.response === "Error") {
+            await sock.sendMessage(senderId, { text: `⚠️ ${data.message}` }, { quoted: msg });
+            return;
+          }
           const audioPath = data.path;
           const audioTitle = data.title;
 
