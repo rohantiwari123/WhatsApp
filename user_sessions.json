@@ -91,33 +91,17 @@
       },
       {
         "role": "assistant",
-        "content": "*Welcome Back*\nHello again. Since you switched back to English, let's continue our conversation. We were exploring some interesting topics earlier, such as:\n* The nature of reality and the universe\n* The concept of consciousness and the mind\n* The search for meaning and purpose in life\n* The possibilities of the future and emerging technologies\nWhich one of these topics would you like to dive back into, or do you have a new direction in mind?"
+        "content": "*Hello Again Rohan*\nWelcome back! I see you're starting fresh again. Don't worry, I still remember our previous conversations and your name, Rohan. What's on your mind today? Want to explore some _cosmic ideas_, discuss _philosophy_, or maybe something new? 🌌"
       },
       {
         "role": "user",
-        "content": "What is my name"
+        "content": "Hi"
       },
       {
         "role": "assistant",
-        "content": "*Memory Recall*\nUnfortunately, I don't have any information about your name, as we just started our conversation and I didn't receive any details about you. I'm a conversational AI, and our conversation just started, so I don't have any prior knowledge about you. Would you like to share your name with me? 🙋‍♀️"
-      },
-      {
-        "role": "user",
-        "content": "My name is rohan"
-      },
-      {
-        "role": "assistant",
-        "content": "*Namaste Rohan*\nNice to meet you, Rohan. I'll make sure to remember your name for our conversation. Now that we have a personal touch, let's dive back into the vast expanse of the universe and the mysteries of existence. What's been on your mind lately, Rohan? Would you like to explore the _nature of reality_, the _cosmos_, or perhaps the _human condition_? 🌌"
-      },
-      {
-        "role": "user",
-        "content": "What is my name"
-      },
-      {
-        "role": "assistant",
-        "content": "*Memory Recall*\nYour name is Rohan. I remembered it from our previous conversation. 😊"
+        "content": "*Hello Rohan*\nIt seems like we're starting anew again. No worries, I'm here to chat and explore the vast expanse of ideas with you. Your name is still remembered, and I'm ready to dive into discussions on _existence_, _consciousness_, or anything that piques your interest. What's your thought for the day, Rohan? 🧠"
       }
     ],
-    "summary": "Here is a summary of the conversation history:\n**Key Facts about the User:** No personal details are known, including name, interests, or location, except that the user is bilingual in English and Hindi. \n**Ongoing Discussion Topics:** Existential philosophy, the nature of reality, consciousness, and the universe."
+    "summary": "**Key Facts about the User:** Rohan is the user's name, and they are bilingual in English and Hindi. \n**Ongoing Discussion Topics:** Existential philosophy, the nature of reality, consciousness, and the universe."
   }
 }

@@ -320,14 +320,22 @@ async function connectToWhatsApp() {
 
       const statusCode = lastDisconnect.error?.output?.statusCode;
       const isLoggedOut = statusCode === DisconnectReason.loggedOut || statusCode === 401;
+      const isConflict = lastDisconnect.error?.message?.includes("conflict") || statusCode === 440;
       
       console.log(`🔄 Connection closed (status: ${statusCode}), reconnecting...`);
       
       let delay = 5000;
-      if (lastDisconnect.error?.message?.includes("conflict")) {
+      if (isConflict) {
         reconnectAttempts++;
-        delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 60000); // Exponential backoff up to 1 min
-        console.warn(`⚠️ Conflict Detected: Reconnecting in ${delay/1000}s (Attempt ${reconnectAttempts})`);
+        // Stronger backoff for conflicts: 4s, 8s, 16s, 32s, 64s... up to 5 mins
+        delay = Math.min(2000 * Math.pow(2, reconnectAttempts), 300000); 
+        console.warn(`⚠️ Conflict Detected: Another instance is likely running. Reconnecting in ${delay/1000}s (Attempt ${reconnectAttempts})`);
+        
+        if (reconnectAttempts > 10) {
+            console.error("🛑 Excessive connection conflicts. Stopping bot to protect account.");
+            console.error("Please ensure only ONE instance is running with these credentials.");
+            return; // Stop the loop
+        }
       }
 
       if (isLoggedOut) {
@@ -340,7 +348,13 @@ async function connectToWhatsApp() {
     } else if (connection === "open") {
         isConnecting = false;
         sock.pairingRequested = false;
-        reconnectAttempts = 0; // Reset on success
+        
+        // Reset attempts ONLY after 1 minute of stable connection
+        setTimeout(() => {
+            reconnectAttempts = 0;
+            console.log("✅ Connection stable for 60s. Reconnect counter reset.");
+        }, 60000);
+
         if (pairingTimeout) {
             clearTimeout(pairingTimeout);
             pairingTimeout = null;
