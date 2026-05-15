@@ -140,6 +140,10 @@ async def process_youtube_search(request: SearchRequest):
         print(f"Search Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+class YouTubeRequest(BaseModel):
+    url: str
+    audio_only: Optional[bool] = False
+
 class NewsRequest(BaseModel):
     topic: str
 
