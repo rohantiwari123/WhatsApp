@@ -491,7 +491,7 @@ You must return ONLY a valid JSON object. Do not include markdown code blocks. F
         }
 
         // Toxicity Filter (Basic keywords for now, can be AI-expanded)
-        const containsToxicity = TOXIC_WORDS.some(word => text.toLowerCase().includes(word));
+        const containsToxicity = TOXIC_WORDS.some(word => rawText.toLowerCase().includes(word));
         if (containsToxicity) {
           await sock.sendMessage(senderId, { delete: msg.key });
           await sock.sendMessage(senderId, { text: `⚠️ @${participant.split("@")[0]}, toxicity only consumes the one who holds it. Let our space remain sacred. (Inappropriate Content)`, mentions: [participant] });
@@ -551,6 +551,7 @@ You must return ONLY a valid JSON object. Do not include markdown code blocks. F
 
       // Clean text (remove mentions)
       text = text.replace(/@\S+/g, "").trim();
+      const rawText = text; // Keep a clean version without quoted formatting for commands
 
       // Context from quoted messages
       const quotedMessageInfo =
@@ -574,27 +575,27 @@ You must return ONLY a valid JSON object. Do not include markdown code blocks. F
 
         if (!isErrorQuoted) {
           console.log(`📌 Quoted Context: ${quotedText}`);
-          text = `[मैंने आपके इस पिछले मैसेज पर रिप्लाई किया है: "${quotedText}"]\n\nमेरा नया सवाल/जवाब: ${text}`;
+          text = `[मैंने आपके इस पिछले मैसेज पर रिप्लाई किया है: "${quotedText}"]\n\nमेरा नया सवाल/जवाब: ${rawText}`;
         }
       }
       // Default greeting in group without direct text but mentioned
-      if (!text && isGroup && !hasImage) {
+      if (!rawText && isGroup && !hasImage) {
         text = "नमस्ते! मैं 'Beyond the Verse' का AI गाइड हूँ।";
       }
 
-      if (!text && !hasImage) {
+      if (!rawText && !hasImage) {
         console.log(`⏭️ Skipping empty message from ${senderId}.`);
         return;
       }
 
-      console.log(`💬 User (${senderId}): ${text || "[Image/Media]"}`);
+      console.log(`💬 User (${senderId}): ${rawText || "[Image/Media]"}`);
 
       // Buffer group messages for summary
-      if (isGroup && text && !text.startsWith("/")) {
+      if (isGroup && rawText && !rawText.startsWith("/")) {
         if (!groupMsgBuffer.has(senderId)) groupMsgBuffer.set(senderId, []);
         const buffer = groupMsgBuffer.get(senderId);
         const participantName = msg.pushName || msg.key.participant?.split("@")[0] || "User";
-        buffer.push(`${participantName}: ${text}`);
+        buffer.push(`${participantName}: ${rawText}`);
         if (buffer.length > 20) buffer.shift(); // Keep last 20 messages
       }
 
@@ -610,7 +611,7 @@ You must return ONLY a valid JSON object. Do not include markdown code blocks. F
 
       try {
       // 🆘 COMMAND: /help (List all commands)
-      if (text.toLowerCase() === "/help") {
+      if (rawText.toLowerCase() === "/help") {
         const helpMessage = `🌌 *Beyond the Verse AI: Guide*
         
 Welcome! I am your advanced AI companion. Here are the ways you can interact with me:
@@ -652,7 +653,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       }
 
       // 📢 COMMAND: /everyone (Tag all members)
-      if (text.toLowerCase() === "/everyone" && isGroup) {
+      if (rawText.toLowerCase() === "/everyone" && isGroup) {
         try {
           const groupMetadata = await sock.groupMetadata(senderId);
           const participants = groupMetadata.participants.map(p => p.id);
@@ -673,7 +674,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       }
 
       // 👢 COMMAND: /kick (Remove member - Admin Only)
-      if (text.toLowerCase().startsWith("/kick ") && isGroup) {
+      if (rawText.toLowerCase().startsWith("/kick ") && isGroup) {
         try {
           const groupMetadata = await sock.groupMetadata(senderId);
           const isAdmin = groupMetadata.participants.find(p => p.id === msg.key.participant)?.admin;
@@ -698,7 +699,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       }
 
       // 📝 COMMAND: /summarize_chat (AI Summary of last 20 messages)
-      if (text.toLowerCase() === "/summarize_chat" && isGroup) {
+      if (rawText.toLowerCase() === "/summarize_chat" && isGroup) {
         const buffer = groupMsgBuffer.get(senderId) || [];
         if (buffer.length < 5) {
           await sock.sendMessage(senderId, { text: "⚠️ समरी बनाने के लिए अभी पर्याप्त मैसेज नहीं हैं।" }, { quoted: msg });
@@ -721,7 +722,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       }
 
       // 🧠 COMMAND: /fact
-      if (text.toLowerCase() === "/fact") {
+      if (rawText.toLowerCase() === "/fact") {
         try {
           const response = await fetchWithTimeout("http://localhost:8080/fact", {
             method: "GET",
@@ -736,7 +737,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       }
 
       // 🏓 COMMAND: /ping
-      if (text.toLowerCase() === "/ping") {
+      if (rawText.toLowerCase() === "/ping") {
         await sock.sendMessage(senderId, { text: "🏓 *Pong!* I am online and ready. ✨" }, { quoted: msg });
         await sock.sendMessage(senderId, { react: { text: "⚡", key: msg.key } });
         return;
@@ -744,12 +745,12 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 
       // 🎥 COMMAND: /yt or /youtube (Download YouTube Video via Python)
       if (
-        text.toLowerCase().startsWith("/yt ") ||
-        text.toLowerCase().startsWith("/youtube ")
+        rawText.toLowerCase().startsWith("/yt ") ||
+        rawText.toLowerCase().startsWith("/youtube ")
       ) {
-        const url = text.toLowerCase().startsWith("/yt ")
-          ? text.slice(4).trim()
-          : text.slice(9).trim();
+        const url = rawText.toLowerCase().startsWith("/yt ")
+          ? rawText.slice(4).trim()
+          : rawText.slice(9).trim();
         if (!url) return;
 
         await sock.sendMessage(
@@ -814,12 +815,12 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 
       // 🎵 COMMAND: /song or /ringtone (Interactive YouTube Search)
       if (
-        text.toLowerCase().startsWith("/song ") ||
-        text.toLowerCase().startsWith("/ringtone ")
+        rawText.toLowerCase().startsWith("/song ") ||
+        rawText.toLowerCase().startsWith("/ringtone ")
       ) {
-        const query = text.toLowerCase().startsWith("/song ")
-          ? text.slice(6).trim()
-          : text.slice(10).trim();
+        const query = rawText.toLowerCase().startsWith("/song ")
+          ? rawText.slice(6).trim()
+          : rawText.slice(10).trim();
         if (!query) return;
 
         await sock.sendMessage(senderId, { text: "🔍 *Searching YouTube:* Please wait..." }, { quoted: msg });
@@ -870,7 +871,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       // Handle "next" or numerical replies for audio search
       const searchState = audioSearchStates.get(senderId);
       if (searchState && (Date.now() - searchState.lastMsgTime < 300000)) { // 5 min timeout
-        const cleanText = text.trim().toLowerCase();
+        const cleanText = rawText.trim().toLowerCase();
         
         if (cleanText === "next") {
           const start = searchState.page * 5;
@@ -935,8 +936,8 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       }
 
       // 🎨 COMMAND: /imagine (AI Image Generation)
-      if (text.toLowerCase().startsWith("/imagine ")) {
-        const imagePrompt = text.slice(9).trim();
+      if (rawText.toLowerCase().startsWith("/imagine ")) {
+        const imagePrompt = rawText.slice(9).trim();
         const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
           imagePrompt
         )}?width=1024&height=1024&nologo=true`;
@@ -957,7 +958,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       }
 
       // 🎭 COMMAND: /sticker (Convert Media to Sticker)
-      if (text.toLowerCase() === "/sticker") {
+      if (rawText.toLowerCase() === "/sticker") {
         if (!hasImage && !hasVideo) {
           await sock.sendMessage(senderId, { text: "⚠️ Please reply to an image or short video to create a sticker." }, { quoted: msg });
           return;
@@ -999,7 +1000,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       }
 
       // 🔊 COMMAND: /audio (Extract Audio from Video)
-      if (text.toLowerCase() === "/audio") {
+      if (rawText.toLowerCase() === "/audio") {
         if (!hasVideo) {
           await sock.sendMessage(senderId, { text: "⚠️ Please reply to a video to extract its soul (audio)." }, { quoted: msg });
           return;
@@ -1039,12 +1040,12 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 
       // 🧬 COMMAND: /research or /search (Autonomous AI Research Agent via Python)
       if (
-        text.toLowerCase().startsWith("/research ") ||
-        text.toLowerCase().startsWith("/search ")
+        rawText.toLowerCase().startsWith("/research ") ||
+        rawText.toLowerCase().startsWith("/search ")
       ) {
-        const query = text.toLowerCase().startsWith("/research ")
-          ? text.slice(10).trim()
-          : text.slice(8).trim();
+        const query = rawText.toLowerCase().startsWith("/research ")
+          ? rawText.slice(10).trim()
+          : rawText.slice(8).trim();
         if (!query) return;
 
         try {
@@ -1083,8 +1084,8 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       }
 
       // 📜 COMMAND: /summarize (Deep Web Scraper & Summarizer via Python)
-      if (text.toLowerCase().startsWith("/summarize ")) {
-        const url = text.slice(11).trim();
+      if (rawText.toLowerCase().startsWith("/summarize ")) {
+        const url = rawText.slice(11).trim();
         if (!url) return;
 
         try {
@@ -1123,8 +1124,8 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       }
 
       // 📰 COMMAND: /news (Fetch latest news via Python)
-      if (text.toLowerCase().startsWith("/news ")) {
-        const topic = text.slice(6).trim();
+      if (rawText.toLowerCase().startsWith("/news ")) {
+        const topic = rawText.slice(6).trim();
         if (!topic) return;
 
         try {
@@ -1157,8 +1158,8 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       }
 
       // ❓ COMMAND: /quiz (Generate interactive quiz via Python)
-      if (text.toLowerCase().startsWith("/quiz ")) {
-        const topic = text.slice(6).trim();
+      if (rawText.toLowerCase().startsWith("/quiz ")) {
+        const topic = rawText.slice(6).trim();
         if (!topic) return;
 
         try {
@@ -1191,8 +1192,8 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       }
 
       // 🎙️ COMMAND: /tts (Convert Text to Speech Voice Note via Python)
-      if (text.toLowerCase().startsWith("/tts ")) {
-        const ttsText = text.slice(5).trim();
+      if (rawText.toLowerCase().startsWith("/tts ")) {
+        const ttsText = rawText.slice(5).trim();
         if (!ttsText) return;
 
         await sock.sendMessage(senderId, { react: { text: "⏳", key: msg.key } });
@@ -1266,12 +1267,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
           const base64Image = buffer.toString("base64");
 
           const prompt =
-            text
-              .replace(
-                /\[मैंने आपके इस पिछले मैसेज पर रिप्लाई किया है: ".*"\]\n\nमेरा नया सवाल\/जवाब: /g,
-                ""
-              )
-              .trim() ||
+            rawText.trim() ||
             "What is in this image? Explain beautifully and deeply like a Beyond the Verse guide.";
 
           const response = await fetchWithTimeout("http://localhost:8080/vision", {
