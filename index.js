@@ -836,8 +836,12 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
           const data = await response.json();
           const results = data.results;
 
-          if (results.length === 0) {
-            await sock.sendMessage(senderId, { text: "⚠️ No results found." }, { quoted: msg });
+          if (!results || results.length === 0) {
+            let errMsg = "⚠️ YouTube search is currently restricted. Please try a direct link or try again later.";
+            if (data.error && data.error.includes("bot")) {
+                errMsg = "🛡️ YouTube detected unusual traffic. Try a more specific song name or use a direct link.";
+            }
+            await sock.sendMessage(senderId, { text: errMsg }, { quoted: msg });
             return;
           }
 
@@ -857,8 +861,8 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
           await sock.sendMessage(senderId, { text: helpText }, { quoted: msg });
           return;
         } catch (e) {
-          console.error(e);
-          await sock.sendMessage(senderId, { text: "⚠️ Search failed. Please try again." }, { quoted: msg });
+          console.error("Search Error:", e);
+          await sock.sendMessage(senderId, { text: "⚠️ Search failed. YouTube might be blocking the request. Try a direct link." }, { quoted: msg });
           return;
         }
       }
@@ -866,7 +870,9 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       // Handle "next" or numerical replies for audio search
       const searchState = audioSearchStates.get(senderId);
       if (searchState && (Date.now() - searchState.lastMsgTime < 300000)) { // 5 min timeout
-        if (text.toLowerCase() === "next") {
+        const cleanText = text.trim().toLowerCase();
+        
+        if (cleanText === "next") {
           const start = searchState.page * 5;
           const end = start + 5;
           const nextResults = searchState.results.slice(start, end);
@@ -889,10 +895,11 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
           return;
         }
 
-        const choice = parseInt(text.trim());
+        const choice = parseInt(cleanText);
         if (!isNaN(choice) && choice > 0 && choice <= searchState.results.length) {
+          console.log(`✅ User ${senderId} selected choice ${choice}: ${searchState.results[choice-1].title}`);
           const selected = searchState.results[choice - 1];
-          audioSearchStates.delete(senderId); // Clear state
+          audioSearchStates.delete(senderId); // Clear state after selection
 
           await sock.sendMessage(senderId, { text: `⏳ *Fetching:* ${selected.title}...` }, { quoted: msg });
 

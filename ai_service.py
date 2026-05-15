@@ -109,35 +109,70 @@ async def process_youtube_search(request: SearchRequest):
     try:
         import yt_dlp
         
-        ydl_opts = {
-            'quiet': True,
-            'no_warnings': True,
-            'extract_flat': True,
-            'force_generic_extractor': False,
-            'nocheckcertificate': True,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['tv', 'ios'],
+        # Try multiple player clients for search
+        clients_to_try = [['tv'], ['web_embedded'], ['ios'], ['android']]
+        last_error = ""
+
+        for clients in clients_to_try:
+            try:
+                ydl_opts = {
+                    'quiet': True,
+                    'no_warnings': True,
+                    'extract_flat': True,
+                    'force_generic_extractor': False,
+                    'nocheckcertificate': True,
+                    'extractor_args': {
+                        'youtube': {
+                            'player_client': clients,
+                        }
+                    },
                 }
-            },
-        }
-        
-        search_query = f"ytsearch{request.limit}:{request.query}"
-        
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(search_query, download=False)
-            results = []
-            if 'entries' in info:
-                for entry in info['entries']:
-                    results.append({
-                        "id": entry.get("id"),
-                        "title": entry.get("title"),
-                        "url": f"https://www.youtube.com/watch?v={entry.get('id')}",
-                        "duration": entry.get("duration")
-                    })
-            return {"results": results}
+                
+                search_query = f"ytsearch{request.limit}:{request.query}"
+                
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(search_query, download=False)
+                    results = []
+                    if 'entries' in info:
+                        for entry in info['entries']:
+                            if entry:
+                                results.append({
+                                    "id": entry.get("id"),
+                                    "title": entry.get("title"),
+                                    "url": f"https://www.youtube.com/watch?v={entry.get('id')}",
+                                    "duration": entry.get("duration")
+                                })
+                    if results:
+                        return {"results": results}
+            except Exception as e:
+                last_error = str(e)
+                print(f"Search attempt with {clients} failed: {last_error}")
+                continue
+
+        # If all yt-dlp attempts fail, try a fallback if possible (e.g. Tavily)
+        if agent_executor:
+            try:
+                print("Falling back to Tavily search for YouTube links...")
+                search_result = search_tool.invoke(f"site:youtube.com {request.query}")
+                # Parse Tavily results for YouTube links
+                results = []
+                import re
+                for res in search_result:
+                    url = res.get('url', '')
+                    if 'youtube.com/watch?v=' in url:
+                        results.append({
+                            "id": url.split('v=')[1][:11],
+                            "title": res.get('title', 'YouTube Video'),
+                            "url": url,
+                        })
+                if results:
+                    return {"results": results[:request.limit]}
+            except Exception as tavily_err:
+                print(f"Tavily fallback failed: {tavily_err}")
+
+        return {"results": [], "error": last_error}
     except Exception as e:
-        print(f"Search Error: {e}")
+        print(f"Search Global Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 class YouTubeRequest(BaseModel):
