@@ -110,17 +110,18 @@ class SearchRequest(BaseModel):
 
 @app.post("/youtube_search")
 async def process_youtube_search(request: SearchRequest):
+    VERSION = "2026-05-15-V3" # Version tracking
     try:
         import yt_dlp
         import asyncio
         
         # Try multiple player clients for search - prioritized for resilience
-        # Using strings instead of lists for player_client
-        clients_to_try = ["android,ios", "web_embedded", "tv", "ios", "android"]
+        clients_to_try = ["android", "ios", "tvhtml5", "web_embedded", "mweb", "android,ios"]
         last_error = ""
 
         for client_str in clients_to_try:
             try:
+                print(f"[{VERSION}] Attempting search with client: {client_str}")
                 ydl_opts = {
                     'quiet': True,
                     'no_warnings': True,
@@ -131,7 +132,7 @@ async def process_youtube_search(request: SearchRequest):
                     'impersonate': 'chrome', # Use yt-dlp's impersonate feature
                     'extractor_args': {
                         'youtube': {
-                            'player_client': client_str,
+                            'player_client': [client_str] if "," not in client_str else client_str.split(","),
                         }
                     },
                     'http_headers': {
@@ -525,6 +526,7 @@ async def process_read_pdf(request: PDFRequest):
 
 @app.post("/youtube")
 async def process_youtube(request: YouTubeRequest):
+    VERSION = "2026-05-15-V3" # Version tracking
     try:
         import yt_dlp
         import uuid
@@ -538,12 +540,13 @@ async def process_youtube(request: YouTubeRequest):
         output_tmpl = os.path.join(DOWNLOADS_DIR, f"{file_id}.%(ext)s")
         
         # Try multiple player clients for download - reordered to prioritize more resilient ones
-        clients_to_try = ["android,ios", "web_embedded", "tv", "mweb", "ios", "android"]
+        clients_to_try = ["android", "ios", "tvhtml5", "web_embedded", "mweb", "android,ios"]
         last_exception = None
 
         for client_str in clients_to_try:
             try:
                 import asyncio
+                print(f"[{VERSION}] Attempting download with client: {client_str}")
                 ydl_opts = {
                     'outtmpl': output_tmpl,
                     'max_filesize': 50 * 1024 * 1024, # Limit to 50MB
@@ -553,14 +556,12 @@ async def process_youtube(request: YouTubeRequest):
                     'nocheckcertificate': True,
                     'geo_bypass': True,
                     'cachedir': False,
-                    'source_address': '0.0.0.0', # Force IPv4 as IPv6 is often flagged
+                    'source_address': '0.0.0.0', # Force IPv4
                     'impersonate': 'chrome', # Use yt-dlp's impersonate feature
                     'extractor_args': {
                         'youtube': {
-                            'player_client': client_str,
+                            'player_client': [client_str] if "," not in client_str else client_str.split(","),
                             'player_skip': ['webpage', 'configs'],
-                            'include_dash_manifest': False,
-                            'include_hls_manifest': False,
                         }
                     },
                     'http_headers': {
