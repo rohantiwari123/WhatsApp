@@ -129,7 +129,6 @@ async def process_youtube_search(request: SearchRequest):
                     'force_generic_extractor': False,
                     'nocheckcertificate': True,
                     'source_address': '0.0.0.0', # Force IPv4
-                    'impersonate': 'chrome', # Use yt-dlp's impersonate feature
                     'extractor_args': {
                         'youtube': {
                             'player_client': [client_str] if "," not in client_str else client_str.split(","),
@@ -169,17 +168,36 @@ async def process_youtube_search(request: SearchRequest):
             try:
                 print("Falling back to Tavily search for YouTube links...")
                 search_result = search_tool.invoke(f"site:youtube.com {request.query}")
-                # Parse Tavily results for YouTube links
                 results = []
                 import re
-                for res in search_result:
-                    url = res.get('url', '')
-                    if 'youtube.com/watch?v=' in url:
+                
+                # Handle results whether they are a list of dicts or a string
+                if isinstance(search_result, list):
+                    for res in search_result:
+                        url = ""
+                        title = "YouTube Video"
+                        if isinstance(res, dict):
+                            url = res.get('url', '')
+                            title = res.get('title', 'YouTube Video')
+                        elif isinstance(res, str):
+                            url = res
+                        
+                        if 'youtube.com/watch?v=' in url:
+                            results.append({
+                                "id": url.split('v=')[1][:11],
+                                "title": title,
+                                "url": url,
+                            })
+                elif isinstance(search_result, str):
+                    # Try to extract URLs from string
+                    urls = re.findall(r'https?://(?:www\.)?youtube\.com/watch\?v=[\w-]+', search_result)
+                    for url in urls:
                         results.append({
                             "id": url.split('v=')[1][:11],
-                            "title": res.get('title', 'YouTube Video'),
+                            "title": "YouTube Video",
                             "url": url,
                         })
+
                 if results:
                     return {"results": results[:request.limit]}
             except Exception as tavily_err:
@@ -557,7 +575,6 @@ async def process_youtube(request: YouTubeRequest):
                     'geo_bypass': True,
                     'cachedir': False,
                     'source_address': '0.0.0.0', # Force IPv4
-                    'impersonate': 'chrome', # Use yt-dlp's impersonate feature
                     'extractor_args': {
                         'youtube': {
                             'player_client': [client_str] if "," not in client_str else client_str.split(","),
