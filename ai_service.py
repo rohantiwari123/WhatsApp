@@ -100,9 +100,45 @@ class ResearchRequest(BaseModel):
 class SummarizeRequest(BaseModel):
     url: str
 
-class YouTubeRequest(BaseModel):
-    url: str
-    audio_only: Optional[bool] = False
+class SearchRequest(BaseModel):
+    query: str
+    limit: Optional[int] = 5
+
+@app.post("/youtube_search")
+async def process_youtube_search(request: SearchRequest):
+    try:
+        import yt_dlp
+        
+        ydl_opts = {
+            'quiet': True,
+            'no_warnings': True,
+            'extract_flat': True,
+            'force_generic_extractor': False,
+            'nocheckcertificate': True,
+            'extractor_args': {
+                'youtube': {
+                    'player_client': ['tv', 'ios'],
+                }
+            },
+        }
+        
+        search_query = f"ytsearch{request.limit}:{request.query}"
+        
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(search_query, download=False)
+            results = []
+            if 'entries' in info:
+                for entry in info['entries']:
+                    results.append({
+                        "id": entry.get("id"),
+                        "title": entry.get("title"),
+                        "url": f"https://www.youtube.com/watch?v={entry.get('id')}",
+                        "duration": entry.get("duration")
+                    })
+            return {"results": results}
+    except Exception as e:
+        print(f"Search Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 class NewsRequest(BaseModel):
     topic: str
@@ -451,20 +487,14 @@ async def process_youtube(request: YouTubeRequest):
             'quiet': True,
             'no_warnings': True,
             'noplaylist': True,
-            'user_agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'nocheckcertificate': True,
+            'geo_bypass': True,
             'extractor_args': {
                 'youtube': {
-                    'player_client': ['android', 'ios', 'web', 'mweb'],
+                    'player_client': ['tv', 'ios', 'android'],
                     'player_skip': ['webpage', 'configs'],
                 }
             },
-            'nocheckcertificate': True,
-            'geo_bypass': True,
-            'http_headers': {
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-                'Accept-Language': 'en-us,en;q=0.5',
-                'Sec-Fetch-Mode': 'navigate',
-            }
         }
 
         if request.audio_only:

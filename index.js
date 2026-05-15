@@ -38,6 +38,7 @@ const question = (text) => new Promise((resolve) => rl.question(text, resolve));
 // ----------------------------------------------------
 const SESSION_FILE = "./user_sessions.json";
 let userSessions = new Map();
+let audioSearchStates = new Map(); // Track /song or /ringtone search results for users
 let groupMsgBuffer = new Map(); // Store last 20 messages per group for summary
 let messageLog = new Map(); // For anti-spam tracking
 const TOXIC_WORDS = ["abuse1", "abuse2"]; // Example placeholders, will use a broader check logic
@@ -811,7 +812,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         }
       }
 
-      // 🎵 COMMAND: /song or /ringtone (Download YouTube Audio)
+      // 🎵 COMMAND: /song or /ringtone (Interactive YouTube Search)
       if (
         text.toLowerCase().startsWith("/song ") ||
         text.toLowerCase().startsWith("/ringtone ")
@@ -821,64 +822,108 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
           : text.slice(10).trim();
         if (!query) return;
 
-        await sock.sendMessage(
-          senderId,
-          {
-            text: "⏳ *Downloading Audio:* Searching and fetching your audio... Please wait.",
-          },
-          { quoted: msg }
-        );
+        await sock.sendMessage(senderId, { text: "🔍 *Searching YouTube:* Please wait..." }, { quoted: msg });
 
         try {
-          const response = await fetchWithTimeout("http://localhost:8080/youtube", {
+          const response = await fetchWithTimeout("http://localhost:8080/youtube_search", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ url: query, audio_only: true }),
+            body: JSON.stringify({ query, limit: 10 }),
           });
 
-          if (!response.ok) throw new Error("Download Error");
+          if (!response.ok) throw new Error("Search Error");
 
           const data = await response.json();
-          if (data.response === "Error") {
-            await sock.sendMessage(senderId, { text: `⚠️ ${data.message}` }, { quoted: msg });
+          const results = data.results;
+
+          if (results.length === 0) {
+            await sock.sendMessage(senderId, { text: "⚠️ No results found." }, { quoted: msg });
             return;
           }
-          const audioPath = data.path;
-          const audioTitle = data.title;
 
-          if (fs.existsSync(audioPath)) {
-            await sock.sendMessage(
-              senderId,
-              {
-                audio: fs.readFileSync(audioPath),
-                mimetype: 'audio/mpeg',
-                fileName: `${audioTitle}.mp3`
-              },
-              { quoted: msg }
-            );
+          audioSearchStates.set(senderId, {
+            query,
+            results,
+            page: 1,
+            lastMsgTime: Date.now()
+          });
 
-            // Clean up file after sending
-            fs.unlinkSync(audioPath);
-            await sock.sendMessage(senderId, {
-              react: { text: "🎵", key: msg.key },
-            });
-          } else {
-            throw new Error("File not found after download");
-          }
+          let helpText = `🎵 *Search Results for:* "${query}"\n\n`;
+          results.slice(0, 5).forEach((res, i) => {
+            helpText += `${i + 1}. *${res.title}*\n`;
+          });
+          helpText += `\n*Reply with the number* to download.\n*Type "next"* to see more results.`;
+
+          await sock.sendMessage(senderId, { text: helpText }, { quoted: msg });
           return;
         } catch (e) {
           console.error(e);
-          await sock.sendMessage(
-            senderId,
-            {
-              text: "⚠️ ऑडियो डाउनलोड करने में समस्या आई है। कृपया सुनिश्चित करें कि लिंक या नाम सही है।",
-            },
-            { quoted: msg }
-          );
-          await sock.sendMessage(senderId, {
-            react: { text: "❌", key: msg.key },
-          });
+          await sock.sendMessage(senderId, { text: "⚠️ Search failed. Please try again." }, { quoted: msg });
           return;
+        }
+      }
+
+      // Handle "next" or numerical replies for audio search
+      const searchState = audioSearchStates.get(senderId);
+      if (searchState && (Date.now() - searchState.lastMsgTime < 300000)) { // 5 min timeout
+        if (text.toLowerCase() === "next") {
+          const start = searchState.page * 5;
+          const end = start + 5;
+          const nextResults = searchState.results.slice(start, end);
+
+          if (nextResults.length === 0) {
+             await sock.sendMessage(senderId, { text: "⚠️ No more results." }, { quoted: msg });
+             return;
+          }
+
+          searchState.page += 1;
+          searchState.lastMsgTime = Date.now();
+          
+          let helpText = `🎵 *Results (Page ${searchState.page}):*\n\n`;
+          nextResults.forEach((res, i) => {
+            helpText += `${start + i + 1}. *${res.title}*\n`;
+          });
+          helpText += `\n*Reply with the number* to download.\n*Type "next"* to see more.`;
+          
+          await sock.sendMessage(senderId, { text: helpText }, { quoted: msg });
+          return;
+        }
+
+        const choice = parseInt(text.trim());
+        if (!isNaN(choice) && choice > 0 && choice <= searchState.results.length) {
+          const selected = searchState.results[choice - 1];
+          audioSearchStates.delete(senderId); // Clear state
+
+          await sock.sendMessage(senderId, { text: `⏳ *Fetching:* ${selected.title}...` }, { quoted: msg });
+
+          try {
+            const response = await fetchWithTimeout("http://localhost:8080/youtube", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ url: selected.url, audio_only: true }),
+            });
+
+            const data = await response.json();
+            if (data.response === "Error") {
+               await sock.sendMessage(senderId, { text: `⚠️ ${data.message}` }, { quoted: msg });
+               return;
+            }
+
+            if (fs.existsSync(data.path)) {
+              await sock.sendMessage(senderId, {
+                audio: fs.readFileSync(data.path),
+                mimetype: 'audio/mpeg',
+                fileName: `${data.title}.mp3`
+              }, { quoted: msg });
+              fs.unlinkSync(data.path);
+              await sock.sendMessage(senderId, { react: { text: "🎵", key: msg.key } });
+            }
+            return;
+          } catch (e) {
+            console.error(e);
+            await sock.sendMessage(senderId, { text: "⚠️ Download failed." }, { quoted: msg });
+            return;
+          }
         }
       }
 
