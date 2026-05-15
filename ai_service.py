@@ -113,8 +113,8 @@ async def process_youtube_search(request: SearchRequest):
     try:
         import yt_dlp
         
-        # Try multiple player clients for search
-        clients_to_try = [['tv'], ['web_embedded'], ['ios'], ['android']]
+        # Try multiple player clients for search - prioritized for resilience
+        clients_to_try = [['android'], ['ios'], ['web_embedded'], ['tv']]
         last_error = ""
 
         for clients in clients_to_try:
@@ -125,11 +125,16 @@ async def process_youtube_search(request: SearchRequest):
                     'extract_flat': True,
                     'force_generic_extractor': False,
                     'nocheckcertificate': True,
+                    'source_address': '0.0.0.0', # Force IPv4
                     'extractor_args': {
                         'youtube': {
                             'player_client': clients,
                         }
                     },
+                    'http_headers': {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                        'Referer': 'https://www.google.com/',
+                    }
                 }
                 
                 search_query = f"ytsearch{request.limit}:{request.query}"
@@ -527,8 +532,8 @@ async def process_youtube(request: YouTubeRequest):
         # Use absolute path for downloads
         output_tmpl = os.path.join(DOWNLOADS_DIR, f"{file_id}.%(ext)s")
         
-        # Try multiple player clients for download
-        clients_to_try = [['tv'], ['ios'], ['mweb'], ['android'], ['web_embedded']]
+        # Try multiple player clients for download - reordered to prioritize more resilient ones
+        clients_to_try = [['android'], ['ios'], ['web_embedded'], ['tv'], ['mweb']]
         last_exception = None
 
         for clients in clients_to_try:
@@ -542,16 +547,20 @@ async def process_youtube(request: YouTubeRequest):
                     'nocheckcertificate': True,
                     'geo_bypass': True,
                     'cachedir': False,
+                    'source_address': '0.0.0.0', # Force IPv4 as IPv6 is often flagged
                     'extractor_args': {
                         'youtube': {
                             'player_client': clients,
                             'player_skip': ['webpage', 'configs'],
+                            'include_dash_manifest': False,
+                            'include_hls_manifest': False,
                         }
                     },
                     'http_headers': {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
                         'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
                         'Accept-Language': 'en-US,en;q=0.9',
+                        'Referer': 'https://www.google.com/',
                     }
                 }
 
