@@ -29,7 +29,11 @@ if not groq_api_key:
 if not tavily_api_key:
     print("Warning: TAVILY_API_KEY not found.")
 
+from groq import Groq
 from langchain_core.prompts import PromptTemplate
+
+# Initialize Groq client for specialized tasks (like transcription)
+groq_client = Groq(api_key=groq_api_key)
 
 # Models
 try:
@@ -297,6 +301,9 @@ async def summarize_memory(request: MemorySummaryRequest):
 @app.post("/vision")
 async def process_vision(request: VisionRequest):
     try:
+        if not vision_model:
+            return {"response": "⚠️ Vision capabilities are currently unavailable. The model failed to initialize."}
+            
         messages = [
             HumanMessage(
                 content=[
@@ -459,8 +466,8 @@ async def process_transcribe(request: TranscribeRequest):
             raise HTTPException(status_code=404, detail="Audio file not found")
         
         with open(request.file_path, "rb") as audio_file:
-            # Using Groq's Whisper model for transcription
-            transcription = chat_model.client.audio.transcriptions.create(
+            # Using Groq's Whisper model for transcription via the direct client
+            transcription = groq_client.audio.transcriptions.create(
                 file=(os.path.basename(request.file_path), audio_file.read()),
                 model="whisper-large-v3",
                 response_format="text",

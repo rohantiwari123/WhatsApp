@@ -41,7 +41,7 @@ let userSessions = new Map();
 let audioSearchStates = new Map(); // Track /song or /ringtone search results for users
 let groupMsgBuffer = new Map(); // Store last 20 messages per group for summary
 let messageLog = new Map(); // For anti-spam tracking
-const TOXIC_WORDS = ["abuse1", "abuse2"]; // Example placeholders, will use a broader check logic
+const TOXIC_WORDS = ["chutiya", "gandu", "bsdk", "fuck", "bitch", "porn"]; // Basic filter, can be expanded
 
 // Wait for Python Backend to be ready
 async function waitForBackend() {
@@ -129,6 +129,10 @@ RESPONSE STRUCTURE & BEHAVIOR:
 // ----------------------------------------------------
 // 🚀 3. MAIN WHATSAPP CONNECTION LOOP
 // ----------------------------------------------------
+if (!process.env.MONGODB_URI) {
+    console.error("❌ ERROR: MONGODB_URI is missing in environment variables!");
+    process.exit(1);
+}
 const mongoClient = new MongoClient(process.env.MONGODB_URI);
 await mongoClient.connect();
 const authCollection = mongoClient.db("whatsapp_bot").collection("auth_session");
@@ -136,6 +140,7 @@ const authCollection = mongoClient.db("whatsapp_bot").collection("auth_session")
 let isConnecting = false;
 let pairingTimeout = null;
 let reconnectAttempts = 0;
+let globalSock = null;
 
 async function connectToWhatsApp() {
     if (isConnecting) return;
@@ -236,6 +241,7 @@ async function connectToWhatsApp() {
     keepAliveIntervalMs: 10000,
   });
 
+  globalSock = sock;
   sock.ev.on("creds.update", saveCreds);
 
   // --- Group Events: Auto-Welcome ---
@@ -367,77 +373,6 @@ async function connectToWhatsApp() {
     }
   });
 
-  // ⏰ 4. DAILY POLL SYSTEM (CRON JOB)
-  cron.schedule(
-    "0 6 * * *",
-    async () => {
-      console.log(
-        "⏰ सुबह 6 बज गए हैं! 'Beyond the Verse' के लिए पोल जनरेट किया जा रहा है..."
-      );
-
-      try {
-        const TARGET_GROUP_JID = "120363427798992883@g.us";
-        
-        // Open Group for dialogue (Sunrise)
-        try {
-          await sock.groupSettingUpdate(TARGET_GROUP_JID, 'not_announcement');
-          await sock.sendMessage(TARGET_GROUP_JID, { text: "🌅 *The Dawn of Inquiry:* The group is now open for conscious dialogue. Let our words reflect clarity and purpose. ✨" });
-        } catch (e) { console.error("Error opening group:", e); }
-
-        const pollPrompt = `Create a deep, thought-provoking multiple-choice question for the 'Beyond the Verse' WhatsApp community. 
-The topic MUST blend Science (quantum mechanics, neuroscience, etc.), Philosophy (existentialism, consciousness), and practical human life.
-
-You must return ONLY a valid JSON object. Do not include markdown code blocks. Format:
-{
-  "question": "The thought-provoking question?",
-  "options": ["Option A", "Option B", "Option C", "Option D"]
-}`;
-
-        const pollCompletion = await groq.chat.completions.create({
-          messages: [{ role: "user", content: pollPrompt }],
-          model: "llama-3.3-70b-versatile",
-          response_format: { type: "json_object" },
-        });
-
-        let responseText = pollCompletion.choices[0]?.message?.content || "{}";
-        responseText = responseText
-          .replace(/```json/g, "")
-          .replace(/```/g, "")
-          .trim();
-
-        const pollData = JSON.parse(responseText);
-
-        await sock.sendMessage(TARGET_GROUP_JID, {
-          poll: {
-            name: `🌌 *Beyond the Verse: Daily Quest*\n\n${pollData.question}`,
-            values: pollData.options,
-            selectableCount: 1,
-          },
-        });
-        console.log("✅ सुबह का पोल सफलतापूर्वक ग्रुप में भेज दिया गया है!");
-      } catch (error) {
-        console.error("❌ Poll Generation Error:", error);
-      }
-    },
-    { timezone: "Asia/Kolkata" }
-  );
-
-  // 🌙 QUIET MODE: Close group at 11 PM
-  cron.schedule(
-    "0 23 * * *",
-    async () => {
-      console.log("🌙 रात के 11 बज गए हैं! समूह में मौन का समय है।");
-      try {
-        const TARGET_GROUP_JID = "120363427798992883@g.us";
-        await sock.groupSettingUpdate(TARGET_GROUP_JID, 'announcement');
-        await sock.sendMessage(TARGET_GROUP_JID, { text: "🌙 *The Night of Silence:* Discussion is now paused for rest and reflection. We shall reunite at dawn. Let your mind find peace in stillness. ✨" });
-      } catch (e) {
-        console.error("Error closing group for night:", e);
-      }
-    },
-    { timezone: "Asia/Kolkata" }
-  );
-
   // ----------------------------------------------------
   // 💬 5. MESSAGE HANDLING & ADVANCED AI LOGIC
   // ----------------------------------------------------
@@ -464,6 +399,7 @@ You must return ONLY a valid JSON object. Do not include markdown code blocks. F
         msg.message.imageMessage?.caption ||
         "";
 
+      const rawText = text; // Defined early to prevent ReferenceError in toxicity filter
       const messageType = Object.keys(msg.message)[0];
       const cleanBotNumber = myId.split(":")[0].split("@")[0];
       const isGroup = senderId.endsWith("@g.us");
@@ -779,20 +715,21 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
           const videoTitle = data.title;
 
           if (fs.existsSync(videoPath)) {
-            await sock.sendMessage(
-              senderId,
-              {
-                video: fs.readFileSync(videoPath),
-                caption: `🎥 *Video:* ${videoTitle}`,
-              },
-              { quoted: msg }
-            );
-
-            // Clean up file after sending
-            fs.unlinkSync(videoPath);
-            await sock.sendMessage(senderId, {
-              react: { text: "✅", key: msg.key },
-            });
+            try {
+              await sock.sendMessage(
+                senderId,
+                {
+                  video: fs.readFileSync(videoPath),
+                  caption: `🎥 *Video:* ${videoTitle}`,
+                },
+                { quoted: msg }
+              );
+              await sock.sendMessage(senderId, {
+                react: { text: "✅", key: msg.key },
+              });
+            } finally {
+              if (fs.existsSync(videoPath)) fs.unlinkSync(videoPath);
+            }
           } else {
             throw new Error("File not found after download");
           }
@@ -918,13 +855,16 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
             }
 
             if (fs.existsSync(data.path)) {
-              await sock.sendMessage(senderId, {
-                audio: fs.readFileSync(data.path),
-                mimetype: 'audio/mpeg',
-                fileName: `${data.title}.mp3`
-              }, { quoted: msg });
-              fs.unlinkSync(data.path);
-              await sock.sendMessage(senderId, { react: { text: "🎵", key: msg.key } });
+              try {
+                await sock.sendMessage(senderId, {
+                  audio: fs.readFileSync(data.path),
+                  mimetype: 'audio/mpeg',
+                  fileName: `${data.title}.mp3`
+                }, { quoted: msg });
+                await sock.sendMessage(senderId, { react: { text: "🎵", key: msg.key } });
+              } finally {
+                if (fs.existsSync(data.path)) fs.unlinkSync(data.path);
+              }
             }
             return;
           } catch (e) {
@@ -983,15 +923,17 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
           const tempOutFile = `./downloads/sticker_out_${Date.now()}.webp`;
           fs.writeFileSync(tempInFile, buffer);
 
-          const { execSync } = await import("child_process");
-          // Convert to webp with sticker constraints (512x512)
-          execSync(`ffmpeg -i ${tempInFile} -vcodec libwebp -filter:v "scale='if(gt(a,1),512,-1)':'if(gt(a,1),-1,512)',pad=512:512:(512-iw)/2:(512-ih)/2:color=black@0" -lossless 1 -loop 0 -an -vsync 0 ${tempOutFile}`);
+          try {
+            const { execSync } = await import("child_process");
+            // Convert to webp with sticker constraints (512x512)
+            execSync(`ffmpeg -i ${tempInFile} -vcodec libwebp -filter:v "scale='if(gt(a,1),512,-1)':'if(gt(a,1),-1,512)',pad=512:512:(512-iw)/2:(512-ih)/2:color=black@0" -lossless 1 -loop 0 -an -vsync 0 ${tempOutFile}`);
 
-          await sock.sendMessage(senderId, { sticker: fs.readFileSync(tempOutFile) }, { quoted: msg });
-          
-          fs.unlinkSync(tempInFile);
-          fs.unlinkSync(tempOutFile);
-          await sock.sendMessage(senderId, { react: { text: "🎭", key: msg.key } });
+            await sock.sendMessage(senderId, { sticker: fs.readFileSync(tempOutFile) }, { quoted: msg });
+            await sock.sendMessage(senderId, { react: { text: "🎭", key: msg.key } });
+          } finally {
+            if (fs.existsSync(tempInFile)) fs.unlinkSync(tempInFile);
+            if (fs.existsSync(tempOutFile)) fs.unlinkSync(tempOutFile);
+          }
         } catch (e) {
           console.error("Sticker Error:", e);
           await sock.sendMessage(senderId, { text: "⚠️ Failed to create sticker. Ensure the video is short or the image is valid." }, { quoted: msg });
@@ -1019,18 +961,20 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
           const tempAudio = `./downloads/temp_aud_${Date.now()}.ogg`;
           fs.writeFileSync(tempVideo, buffer);
 
-          const { execSync } = await import("child_process");
-          execSync(`ffmpeg -i ${tempVideo} -vn -acodec libopus ${tempAudio}`);
+          try {
+            const { execSync } = await import("child_process");
+            execSync(`ffmpeg -i ${tempVideo} -vn -acodec libopus ${tempAudio}`);
 
-          await sock.sendMessage(senderId, { 
-            audio: fs.readFileSync(tempAudio), 
-            mimetype: 'audio/ogg; codecs=opus', 
-            ptt: true 
-          }, { quoted: msg });
-
-          fs.unlinkSync(tempVideo);
-          fs.unlinkSync(tempAudio);
-          await sock.sendMessage(senderId, { react: { text: "🔊", key: msg.key } });
+            await sock.sendMessage(senderId, { 
+              audio: fs.readFileSync(tempAudio), 
+              mimetype: 'audio/ogg; codecs=opus', 
+              ptt: true 
+            }, { quoted: msg });
+            await sock.sendMessage(senderId, { react: { text: "🔊", key: msg.key } });
+          } finally {
+            if (fs.existsSync(tempVideo)) fs.unlinkSync(tempVideo);
+            if (fs.existsSync(tempAudio)) fs.unlinkSync(tempAudio);
+          }
         } catch (e) {
           console.error("Audio Extraction Error:", e);
           await sock.sendMessage(senderId, { text: "⚠️ Could not extract audio from this video." }, { quoted: msg });
@@ -1214,23 +1158,26 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
           const audioPath = data.path;
 
           if (fs.existsSync(audioPath)) {
-            await sock.sendMessage(
-              senderId,
-              {
-                audio: fs.readFileSync(audioPath),
-                mimetype: 'audio/ogg; codecs=opus', // Native WhatsApp voice note format
-                ptt: true, // Send as a voice note
-              },
-              { quoted: msg }
-            );
-
-            // Clean up file after sending
             try {
-              fs.unlinkSync(audioPath);
-            } catch (unlinkError) {
-              console.error("Failed to delete temporary audio file:", unlinkError);
+              await sock.sendMessage(
+                senderId,
+                {
+                  audio: fs.readFileSync(audioPath),
+                  mimetype: 'audio/ogg; codecs=opus', // Native WhatsApp voice note format
+                  ptt: true, // Send as a voice note
+                },
+                { quoted: msg }
+              );
+              await sock.sendMessage(senderId, { react: { text: "🎙️", key: msg.key } });
+            } finally {
+              if (fs.existsSync(audioPath)) {
+                try {
+                  fs.unlinkSync(audioPath);
+                } catch (unlinkError) {
+                  console.error("Failed to delete temporary audio file:", unlinkError);
+                }
+              }
             }
-            await sock.sendMessage(senderId, { react: { text: "🎙️", key: msg.key } });
           } else {
             throw new Error(`Generated audio file not found at: ${audioPath}`);
           }
@@ -1296,9 +1243,9 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 
       // 🎙️ HEARING: Voice Note Transcription (Handles incoming PTT)
       if (isAudioMessage) {
+        const tempAudio = `./downloads/voice_in_${Date.now()}.ogg`;
         try {
           const buffer = await downloadMediaMessage(msg, "buffer", {}, { reuploadRequest: sock.updateMediaMessage });
-          const tempAudio = `./downloads/voice_in_${Date.now()}.ogg`;
           fs.writeFileSync(tempAudio, buffer);
 
           const response = await fetchWithTimeout("http://localhost:8080/transcribe", {
@@ -1309,26 +1256,27 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 
           const data = await response.json();
           text = data.text; // Use the transcription as the text input for the AI
-          
+
           await sock.sendMessage(senderId, { text: `🎙️ *I heard:* "_${text}_"` }, { quoted: msg });
-          fs.unlinkSync(tempAudio);
-          
+
           // Now proceed to the Normal Chat logic with the transcribed text
         } catch (e) {
           console.error("Transcription Failed:", e);
           return; // Stop if transcription fails
+        } finally {
+          if (fs.existsSync(tempAudio)) fs.unlinkSync(tempAudio);
         }
       }
 
       // 📄 READING: Document Analysis (Specifically PDFs)
       if (isDocumentMessage && msg.message.documentMessage.mimetype === "application/pdf") {
+        const tempPDF = `./downloads/doc_in_${Date.now()}.pdf`;
         try {
           const buffer = await downloadMediaMessage(msg, "buffer", {}, { reuploadRequest: sock.updateMediaMessage });
-          const tempPDF = `./downloads/doc_in_${Date.now()}.pdf`;
           fs.writeFileSync(tempPDF, buffer);
 
           const pdfPrompt = text || "Analyze this document deeply and philosophically.";
-          
+
           const response = await fetchWithTimeout("http://localhost:8080/read_pdf", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -1337,17 +1285,16 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 
           const data = await response.json();
           await sock.sendMessage(senderId, { text: `📄 *Document Insight*\n\n${data.response}` }, { quoted: msg });
-          
-          fs.unlinkSync(tempPDF);
           await sock.sendMessage(senderId, { react: { text: "📖", key: msg.key } });
           return;
         } catch (e) {
           console.error("PDF Reading Error:", e);
           await sock.sendMessage(senderId, { text: "⚠️ I could not parse this document. Is it too large or encrypted?" }, { quoted: msg });
           return;
+        } finally {
+          if (fs.existsSync(tempPDF)) fs.unlinkSync(tempPDF);
         }
       }
-
       // 🧠 NORMAL CHAT: Conversational Memory with Context via Python
       if (!userSessions.has(senderId)) {
         console.log(`🆕 ${senderId} के लिए नई मेमोरी/सेशन शुरू किया गया।`);
@@ -1465,6 +1412,81 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 process.on("unhandledRejection", (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason);
 });
+
+// ----------------------------------------------------
+// ⏰ 4. DAILY POLL SYSTEM (CRON JOB)
+// ----------------------------------------------------
+cron.schedule(
+  "0 6 * * *",
+  async () => {
+    if (!globalSock) return;
+    console.log(
+      "⏰ सुबह 6 बज गए हैं! 'Beyond the Verse' के लिए पोल जनरेट किया जा रहा है..."
+    );
+
+    try {
+      const TARGET_GROUP_JID = "120363427798992883@g.us";
+      
+      // Open Group for dialogue (Sunrise)
+      try {
+        await globalSock.groupSettingUpdate(TARGET_GROUP_JID, 'not_announcement');
+        await globalSock.sendMessage(TARGET_GROUP_JID, { text: "🌅 *The Dawn of Inquiry:* The group is now open for conscious dialogue. Let our words reflect clarity and purpose. ✨" });
+      } catch (e) { console.error("Error opening group:", e); }
+
+      const pollPrompt = `Create a deep, thought-provoking multiple-choice question for the 'Beyond the Verse' WhatsApp community. 
+The topic MUST blend Science (quantum mechanics, neuroscience, etc.), Philosophy (existentialism, consciousness), and practical human life.
+
+You must return ONLY a valid JSON object. Do not include markdown code blocks. Format:
+{
+  "question": "The thought-provoking question?",
+  "options": ["Option A", "Option B", "Option C", "Option D"]
+}`;
+
+      const pollCompletion = await groq.chat.completions.create({
+        messages: [{ role: "user", content: pollPrompt }],
+        model: "llama-3.3-70b-versatile",
+        response_format: { type: "json_object" },
+      });
+
+      let responseText = pollCompletion.choices[0]?.message?.content || "{}";
+      responseText = responseText
+        .replace(/```json/g, "")
+        .replace(/```/g, "")
+        .trim();
+
+      const pollData = JSON.parse(responseText);
+
+      await globalSock.sendMessage(TARGET_GROUP_JID, {
+        poll: {
+          name: `🌌 *Beyond the Verse: Daily Quest*\n\n${pollData.question}`,
+          values: pollData.options,
+          selectableCount: 1,
+        },
+      });
+      console.log("✅ सुबह का पोल सफलतापूर्वक ग्रुप में भेज दिया गया है!");
+    } catch (error) {
+      console.error("❌ Poll Generation Error:", error);
+    }
+  },
+  { timezone: "Asia/Kolkata" }
+);
+
+// 🌙 QUIET MODE: Close group at 11 PM
+cron.schedule(
+  "0 23 * * *",
+  async () => {
+    if (!globalSock) return;
+    console.log("🌙 रात के 11 बज गए हैं! समूह में मौन का समय है।");
+    try {
+      const TARGET_GROUP_JID = "120363427798992883@g.us";
+      await globalSock.groupSettingUpdate(TARGET_GROUP_JID, 'announcement');
+      await globalSock.sendMessage(TARGET_GROUP_JID, { text: "🌙 *The Night of Silence:* Discussion is now paused for rest and reflection. We shall reunite at dawn. Let your mind find peace in stillness. ✨" });
+    } catch (e) {
+      console.error("Error closing group for night:", e);
+    }
+  },
+  { timezone: "Asia/Kolkata" }
+);
 
 // Start the bot after backend is ready
 (async () => {
