@@ -112,12 +112,14 @@ class SearchRequest(BaseModel):
 async def process_youtube_search(request: SearchRequest):
     try:
         import yt_dlp
+        import asyncio
         
         # Try multiple player clients for search - prioritized for resilience
-        clients_to_try = [['android'], ['ios'], ['web_embedded'], ['tv']]
+        # Using strings instead of lists for player_client
+        clients_to_try = ["android,ios", "web_embedded", "tv", "ios", "android"]
         last_error = ""
 
-        for clients in clients_to_try:
+        for client_str in clients_to_try:
             try:
                 ydl_opts = {
                     'quiet': True,
@@ -126,14 +128,16 @@ async def process_youtube_search(request: SearchRequest):
                     'force_generic_extractor': False,
                     'nocheckcertificate': True,
                     'source_address': '0.0.0.0', # Force IPv4
+                    'impersonate': 'chrome', # Use yt-dlp's impersonate feature
                     'extractor_args': {
                         'youtube': {
-                            'player_client': clients,
+                            'player_client': client_str,
                         }
                     },
                     'http_headers': {
                         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
                         'Referer': 'https://www.google.com/',
+                        'Accept-Language': 'en-US,en;q=0.9',
                     }
                 }
                 
@@ -155,7 +159,8 @@ async def process_youtube_search(request: SearchRequest):
                         return {"results": results}
             except Exception as e:
                 last_error = str(e)
-                print(f"Search attempt with {clients} failed: {last_error}")
+                print(f"Search attempt with {client_str} failed: {last_error}")
+                await asyncio.sleep(1) # Small delay between attempts
                 continue
 
         # If all yt-dlp attempts fail, try a fallback if possible (e.g. Tavily)
@@ -533,11 +538,12 @@ async def process_youtube(request: YouTubeRequest):
         output_tmpl = os.path.join(DOWNLOADS_DIR, f"{file_id}.%(ext)s")
         
         # Try multiple player clients for download - reordered to prioritize more resilient ones
-        clients_to_try = [['android'], ['ios'], ['web_embedded'], ['tv'], ['mweb']]
+        clients_to_try = ["android,ios", "web_embedded", "tv", "mweb", "ios", "android"]
         last_exception = None
 
-        for clients in clients_to_try:
+        for client_str in clients_to_try:
             try:
+                import asyncio
                 ydl_opts = {
                     'outtmpl': output_tmpl,
                     'max_filesize': 50 * 1024 * 1024, # Limit to 50MB
@@ -548,9 +554,10 @@ async def process_youtube(request: YouTubeRequest):
                     'geo_bypass': True,
                     'cachedir': False,
                     'source_address': '0.0.0.0', # Force IPv4 as IPv6 is often flagged
+                    'impersonate': 'chrome', # Use yt-dlp's impersonate feature
                     'extractor_args': {
                         'youtube': {
-                            'player_client': clients,
+                            'player_client': client_str,
                             'player_skip': ['webpage', 'configs'],
                             'include_dash_manifest': False,
                             'include_hls_manifest': False,
@@ -599,7 +606,8 @@ async def process_youtube(request: YouTubeRequest):
                         return {"response": "Success", "path": filename, "title": title}
             except Exception as e:
                 last_exception = e
-                print(f"Download attempt with {clients} failed: {e}")
+                print(f"Download attempt with {client_str} failed: {e}")
+                await asyncio.sleep(1) # Small delay between attempts
                 continue
         
         if last_exception:
