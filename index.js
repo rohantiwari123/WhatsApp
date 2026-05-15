@@ -49,7 +49,7 @@ async function waitForBackend() {
   let ready = false;
   while (!ready) {
     try {
-      const response = await fetch("http://localhost:8080/health");
+      const response = await fetch("http://127.0.0.1:8080/health");
       if (response.ok) {
         ready = true;
         console.log("✅ Python AI Core is online and ready!");
@@ -642,7 +642,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         }
 
         try {
-          const response = await fetchWithTimeout("http://localhost:8080/group_summary", {
+          const response = await fetchWithTimeout("http://127.0.0.1:8080/group_summary", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ messages: buffer }),
@@ -659,7 +659,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       // 🧠 COMMAND: /fact
       if (rawText.toLowerCase() === "/fact") {
         try {
-          const response = await fetchWithTimeout("http://localhost:8080/fact", {
+          const response = await fetchWithTimeout("http://127.0.0.1:8080/fact", {
             method: "GET",
           });
           const data = await response.json();
@@ -697,7 +697,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         );
 
         try {
-          const response = await fetchWithTimeout("http://localhost:8080/youtube", {
+          const response = await fetchWithTimeout("http://127.0.0.1:8080/youtube", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url }),
@@ -762,7 +762,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         await sock.sendMessage(senderId, { text: "🔍 *Searching YouTube:* Please wait..." }, { quoted: msg });
 
         try {
-          const response = await fetchWithTimeout("http://localhost:8080/youtube_search", {
+          const response = await fetchWithTimeout("http://127.0.0.1:8080/youtube_search", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ query, limit: 10 }),
@@ -807,9 +807,9 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       // Handle "next" or numerical replies for audio search
       const searchState = audioSearchStates.get(senderId);
       if (searchState && (Date.now() - searchState.lastMsgTime < 300000)) { // 5 min timeout
-        const cleanText = rawText.trim().toLowerCase();
+        const cleanChoiceText = rawText.trim().replace(/\.$/, "").toLowerCase();
         
-        if (cleanText === "next") {
+        if (cleanChoiceText === "next") {
           const start = searchState.page * 5;
           const end = start + 5;
           const nextResults = searchState.results.slice(start, end);
@@ -832,7 +832,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
           return;
         }
 
-        const choice = parseInt(cleanText);
+        const choice = parseInt(cleanChoiceText);
         if (!isNaN(choice) && choice > 0 && choice <= searchState.results.length) {
           console.log(`✅ User ${senderId} selected choice ${choice}: ${searchState.results[choice-1].title}`);
           const selected = searchState.results[choice - 1];
@@ -841,7 +841,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
           await sock.sendMessage(senderId, { text: `⏳ *Fetching:* ${selected.title}...` }, { quoted: msg });
 
           try {
-            const response = await fetchWithTimeout("http://localhost:8080/youtube", {
+            const response = await fetchWithTimeout("http://127.0.0.1:8080/youtube", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ url: selected.url, audio_only: true }),
@@ -992,7 +992,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         if (!query) return;
 
         try {
-          const response = await fetchWithTimeout("http://localhost:8080/research", {
+          const response = await fetchWithTimeout("http://127.0.0.1:8080/research", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ query }),
@@ -1032,7 +1032,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         if (!url) return;
 
         try {
-          const response = await fetchWithTimeout("http://localhost:8080/summarize", {
+          const response = await fetchWithTimeout("http://127.0.0.1:8080/summarize", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ url }),
@@ -1072,7 +1072,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         if (!topic) return;
 
         try {
-          const response = await fetchWithTimeout("http://localhost:8080/news", {
+          const response = await fetchWithTimeout("http://127.0.0.1:8080/news", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ topic }),
@@ -1106,7 +1106,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         if (!topic) return;
 
         try {
-          const response = await fetchWithTimeout("http://localhost:8080/quiz", {
+          const response = await fetchWithTimeout("http://127.0.0.1:8080/quiz", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ topic }),
@@ -1142,7 +1142,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         await sock.sendMessage(senderId, { react: { text: "⏳", key: msg.key } });
 
         try {
-          const response = await fetchWithTimeout("http://localhost:8080/tts", {
+          const response = await fetchWithTimeout("http://127.0.0.1:8080/tts", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text: ttsText }),
@@ -1216,7 +1216,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
             rawText.trim() ||
             "What is in this image? Explain beautifully and deeply like a Beyond the Verse guide.";
 
-          const response = await fetchWithTimeout("http://localhost:8080/vision", {
+          const response = await fetchWithTimeout("http://127.0.0.1:8080/vision", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ user_id: senderId, prompt, base64_image: base64Image }),
@@ -1247,7 +1247,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
           const buffer = await downloadMediaMessage(msg, "buffer", {}, { reuploadRequest: sock.updateMediaMessage });
           fs.writeFileSync(tempAudio, buffer);
 
-          const response = await fetchWithTimeout("http://localhost:8080/transcribe", {
+          const response = await fetchWithTimeout("http://127.0.0.1:8080/transcribe", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ file_path: tempAudio }),
@@ -1276,7 +1276,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 
           const pdfPrompt = text || "Analyze this document deeply and philosophically.";
 
-          const response = await fetchWithTimeout("http://localhost:8080/read_pdf", {
+          const response = await fetchWithTimeout("http://127.0.0.1:8080/read_pdf", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ file_path: tempPDF, prompt: pdfPrompt }),
@@ -1315,7 +1315,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       const cleanHistory = history.filter((msg) => msg.role !== "system");
 
       try {
-        const response = await fetchWithTimeout("http://localhost:8080/chat", {
+        const response = await fetchWithTimeout("http://127.0.0.1:8080/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1342,7 +1342,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         if (cleanHistory.length > 10) {
             console.log(`♻️ Summarizing memory for ${senderId}...`);
             try {
-                const summaryResponse = await fetchWithTimeout("http://localhost:8080/summarize_memory", {
+                const summaryResponse = await fetchWithTimeout("http://127.0.0.1:8080/summarize_memory", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({

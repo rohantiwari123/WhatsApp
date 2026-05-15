@@ -541,12 +541,18 @@ async def process_youtube(request: YouTubeRequest):
                     'noplaylist': True,
                     'nocheckcertificate': True,
                     'geo_bypass': True,
+                    'cachedir': False,
                     'extractor_args': {
                         'youtube': {
                             'player_client': clients,
                             'player_skip': ['webpage', 'configs'],
                         }
                     },
+                    'http_headers': {
+                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
+                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
+                        'Accept-Language': 'en-US,en;q=0.9',
+                    }
                 }
 
                 if request.audio_only:
@@ -594,14 +600,15 @@ async def process_youtube(request: YouTubeRequest):
         error_msg = str(e)
         print(f"YouTube Error: {error_msg}")
         # Common bot detection or region restriction strings
-        bot_keywords = ["bot", "sign in", "confirm you're not", "cookies", "captcha", "unusual traffic"]
+        bot_keywords = ["bot", "sign in", "confirm you're not", "cookies", "captcha", "unusual traffic", "unavailable"]
         if any(k in error_msg.lower() for k in bot_keywords):
             return {
                 "response": "Error", 
-                "message": "YouTube has detected me as a bot. 🛡️\n\n*Suggestions:*\n1. Try a different search term.\n2. Try again in a few minutes.\n3. Provide a direct link instead of a name."
+                "message": "YouTube has detected me as a bot or the video is unavailable in this region. 🛡️\n\n*Suggestions:*\n1. Try a different search term.\n2. Try again in a few minutes.\n3. Provide a direct link instead of a name."
             }
-        return {"response": "Error", "message": f"Download failed: {error_msg[:100]}..."}
+        return {"response": "Error", "message": f"Download failed: {error_msg[:100]}..." }
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    # Bind to 127.0.0.1 to avoid Render's external port detection flapping
+    uvicorn.run(app, host="127.0.0.1", port=8080)
