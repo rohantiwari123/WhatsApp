@@ -399,7 +399,6 @@ async function connectToWhatsApp() {
         msg.message.imageMessage?.caption ||
         "";
 
-      const rawText = text; // Defined early to prevent ReferenceError in toxicity filter
       const messageType = Object.keys(msg.message)[0];
       const cleanBotNumber = myId.split(":")[0].split("@")[0];
       const isGroup = senderId.endsWith("@g.us");
@@ -409,17 +408,17 @@ async function connectToWhatsApp() {
       // ----------------------------------------------------
       if (isGroup && text && !msg.key.fromMe) {
         const participant = msg.key.participant;
-        
+
         // Anti-Spam (Detection of rapid messages)
         const now = Date.now();
         if (!messageLog.has(participant)) messageLog.set(participant, []);
         const userLog = messageLog.get(participant);
         userLog.push(now);
-        
+
         // Remove old entries (>10 seconds)
         const recentMessages = userLog.filter(time => now - time < 10000);
         messageLog.set(participant, recentMessages);
-        
+
         if (recentMessages.length > 5) {
           await sock.sendMessage(senderId, { delete: msg.key });
           await sock.sendMessage(senderId, { text: `⚠️ @${participant.split("@")[0]}, choose your words with awareness; unnecessary noise is merely a symptom of a restless mind. (Spam Detected)`, mentions: [participant] });
@@ -427,7 +426,7 @@ async function connectToWhatsApp() {
         }
 
         // Toxicity Filter (Basic keywords for now, can be AI-expanded)
-        const containsToxicity = TOXIC_WORDS.some(word => rawText.toLowerCase().includes(word));
+        const containsToxicity = TOXIC_WORDS.some(word => text.toLowerCase().includes(word));
         if (containsToxicity) {
           await sock.sendMessage(senderId, { delete: msg.key });
           await sock.sendMessage(senderId, { text: `⚠️ @${participant.split("@")[0]}, toxicity only consumes the one who holds it. Let our space remain sacred. (Inappropriate Content)`, mentions: [participant] });
