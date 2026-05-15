@@ -520,58 +520,69 @@ async def process_youtube(request: YouTubeRequest):
         # Use absolute path for downloads
         output_tmpl = os.path.join(DOWNLOADS_DIR, f"{file_id}.%(ext)s")
         
-        ydl_opts = {
-            'outtmpl': output_tmpl,
-            'max_filesize': 50 * 1024 * 1024, # Limit to 50MB
-            'quiet': True,
-            'no_warnings': True,
-            'noplaylist': True,
-            'nocheckcertificate': True,
-            'geo_bypass': True,
-            'extractor_args': {
-                'youtube': {
-                    'player_client': ['tv', 'ios', 'android'],
-                    'player_skip': ['webpage', 'configs'],
+        # Try multiple player clients for download
+        clients_to_try = [['tv'], ['ios'], ['mweb'], ['android'], ['web_embedded']]
+        last_exception = None
+
+        for clients in clients_to_try:
+            try:
+                ydl_opts = {
+                    'outtmpl': output_tmpl,
+                    'max_filesize': 50 * 1024 * 1024, # Limit to 50MB
+                    'quiet': True,
+                    'no_warnings': True,
+                    'noplaylist': True,
+                    'nocheckcertificate': True,
+                    'geo_bypass': True,
+                    'extractor_args': {
+                        'youtube': {
+                            'player_client': clients,
+                            'player_skip': ['webpage', 'configs'],
+                        }
+                    },
                 }
-            },
-        }
 
-        if request.audio_only:
-            ydl_opts.update({
-                'format': 'bestaudio/best',
-                'postprocessors': [{
-                    'key': 'FFmpegExtractAudio',
-                    'preferredcodec': 'mp3',
-                    'preferredquality': '192',
-                }],
-            })
-        else:
-            ydl_opts.update({
-                'format': 'best[ext=mp4]/best',
-            })
+                if request.audio_only:
+                    ydl_opts.update({
+                        'format': 'bestaudio/best',
+                        'postprocessors': [{
+                            'key': 'FFmpegExtractAudio',
+                            'preferredcodec': 'mp3',
+                            'preferredquality': '192',
+                        }],
+                    })
+                else:
+                    ydl_opts.update({
+                        'format': 'best[ext=mp4]/best',
+                    })
+                
+                with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                    info = ydl.extract_info(url_or_search, download=True)
+                    if 'entries' in info:
+                        info = info['entries'][0]
+                    
+                    title = info.get('title', 'media')
+                    filename = ydl.prepare_filename(info)
+                    
+                    if request.audio_only:
+                        filename = os.path.splitext(filename)[0] + ".mp3"
+
+                    if not os.path.exists(filename):
+                        for f in os.listdir(DOWNLOADS_DIR):
+                            if f.startswith(file_id):
+                                filename = os.path.join(DOWNLOADS_DIR, f)
+                                break
+                    
+                    if os.path.exists(filename):
+                        return {"response": "Success", "path": filename, "title": title}
+            except Exception as e:
+                last_exception = e
+                print(f"Download attempt with {clients} failed: {e}")
+                continue
         
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(url_or_search, download=True)
-            if 'entries' in info:
-                # It's a search result
-                info = info['entries'][0]
+        if last_exception:
+            raise last_exception
             
-            title = info.get('title', 'media')
-            filename = ydl.prepare_filename(info)
-            
-            # For audio, the extension might change to mp3 due to postprocessor
-            if request.audio_only:
-                filename = os.path.splitext(filename)[0] + ".mp3"
-
-            # Ensure it's the actual downloaded file name
-            if not os.path.exists(filename):
-                # Search for any file with the file_id in downloads/
-                for f in os.listdir(DOWNLOADS_DIR):
-                    if f.startswith(file_id):
-                        filename = os.path.join(DOWNLOADS_DIR, f)
-                        break
-            
-        return {"response": "Success", "path": filename, "title": title}
     except Exception as e:
         error_msg = str(e)
         print(f"YouTube Error: {error_msg}")
