@@ -844,7 +844,11 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
             const response = await fetchWithTimeout("http://127.0.0.1:8080/youtube", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ url: selected.url, audio_only: true }),
+              body: JSON.stringify({ 
+                url: selected.url, 
+                audio_only: true,
+                title: selected.title // Pass title for fallback
+              }),
             });
 
             const data = await response.json();
@@ -854,6 +858,9 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
             }
 
             if (fs.existsSync(data.path)) {
+              if (data.fallback) {
+                await sock.sendMessage(senderId, { text: "⚠️ YouTube is currently restricting downloads. I've fetched this from SoundCloud for you instead! 🎵" }, { quoted: msg });
+              }
               try {
                 await sock.sendMessage(senderId, {
                   audio: fs.readFileSync(data.path),
@@ -962,7 +969,8 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 
           try {
             const { execSync } = await import("child_process");
-            execSync(`ffmpeg -i ${tempVideo} -vn -acodec libopus ${tempAudio}`);
+            // Extract with HD quality Opus settings
+            execSync(`ffmpeg -i ${tempVideo} -vn -acodec libopus -b:a 128k -vbr on -compression_level 10 ${tempAudio}`);
 
             await sock.sendMessage(senderId, { 
               audio: fs.readFileSync(tempAudio), 

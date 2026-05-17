@@ -116,7 +116,7 @@ async def process_youtube_search(request: SearchRequest):
         import asyncio
         
         # Try multiple player clients for search - prioritized for resilience
-        clients_to_try = ["android", "ios", "tvhtml5", "web_embedded", "mweb", "android,ios"]
+        clients_to_try = ["web_safari", "android", "ios", "tvhtml5", "web_embedded", "mweb"]
         last_error = ""
 
         for client_str in clients_to_try:
@@ -211,6 +211,7 @@ async def process_youtube_search(request: SearchRequest):
 class YouTubeRequest(BaseModel):
     url: str
     audio_only: Optional[bool] = False
+    title: Optional[str] = None
 
 class NewsRequest(BaseModel):
     topic: str
@@ -438,11 +439,14 @@ async def process_tts(request: TTSRequest):
         tts = gTTS(text=request.text, lang='hi', slow=False)
         tts.save(mp3_filename)
         
-        # Convert to OGG Opus for native WhatsApp voice note support
+        # Convert to OGG Opus for native WhatsApp voice note support with HD quality
         try:
             subprocess.run([
                 "ffmpeg", "-i", mp3_filename,
                 "-c:a", "libopus",
+                "-b:a", "128k",
+                "-vbr", "on",
+                "-compression_level", "10",
                 "-page_duration", "20000", # Helps with seeking/duration
                 ogg_filename, "-y"
             ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -544,12 +548,18 @@ async def process_read_pdf(request: PDFRequest):
 
 @app.post("/youtube")
 async def process_youtube(request: YouTubeRequest):
-    VERSION = "2026-05-15-V3" # Version tracking
+    VERSION = "2026-05-15-V4" # Version tracking
+    # Add Deno to path for better JS execution in yt-dlp
+    os.environ["PATH"] = f"/root/.deno/bin:{os.environ.get('PATH', '')}"
+    
     try:
         import yt_dlp
         import uuid
+        import asyncio
         
         url_or_search = request.url
+        requested_title = request.title or "media"
+        
         if not url_or_search.startswith(("http://", "https://")):
             url_or_search = f"ytsearch:{url_or_search}"
 
@@ -557,58 +567,69 @@ async def process_youtube(request: YouTubeRequest):
         # Use absolute path for downloads
         output_tmpl = os.path.join(DOWNLOADS_DIR, f"{file_id}.%(ext)s")
         
+        # Helper to get matched headers
+        def get_ydl_opts(client_str):
+            # Modern Chrome UA for web clients
+            ua = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36'
+            if 'ios' in client_str:
+                ua = 'com.google.ios.youtube/19.12.3 (iPhone16,2; U; CPU iOS 17_4_1 like Mac OS X; en_US)'
+            elif 'android' in client_str:
+                ua = 'com.google.android.youtube/19.12.35 (Linux; U; Android 14; en_US; Pixel 8 Pro) gzip'
+            
+            opts = {
+                'outtmpl': output_tmpl,
+                'max_filesize': 50 * 1024 * 1024, # Limit to 50MB
+                'quiet': True,
+                'no_warnings': True,
+                'noplaylist': True,
+                'nocheckcertificate': True,
+                'geo_bypass': True,
+                'cachedir': False,
+                'source_address': '0.0.0.0', # Force IPv4
+                'extractor_args': {
+                    'youtube': {
+                        'player_client': [client_str] if "," not in client_str else client_str.split(","),
+                        'player_skip': ['webpage', 'configs'],
+                    }
+                },
+                'http_headers': {
+                    'User-Agent': ua,
+                    'Accept': '*/*',
+                    'Accept-Language': 'en-US,en;q=0.9',
+                    'Referer': 'https://www.google.com/',
+                }
+            }
+            
+            if request.audio_only:
+                opts.update({
+                    'format': 'bestaudio/best',
+                    'postprocessors': [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'mp3',
+                        'preferredquality': '192',
+                    }],
+                })
+            else:
+                opts.update({
+                    'format': 'best[ext=mp4]/best',
+                })
+            return opts
+
         # Try multiple player clients for download - reordered to prioritize more resilient ones
-        clients_to_try = ["android", "ios", "tvhtml5", "web_embedded", "mweb", "android,ios"]
+        clients_to_try = ["web_safari", "ios", "android", "tvhtml5", "web_embedded", "mweb"]
         last_exception = None
 
         for client_str in clients_to_try:
             try:
-                import asyncio
-                print(f"[{VERSION}] Attempting download with client: {client_str}")
-                ydl_opts = {
-                    'outtmpl': output_tmpl,
-                    'max_filesize': 50 * 1024 * 1024, # Limit to 50MB
-                    'quiet': True,
-                    'no_warnings': True,
-                    'noplaylist': True,
-                    'nocheckcertificate': True,
-                    'geo_bypass': True,
-                    'cachedir': False,
-                    'source_address': '0.0.0.0', # Force IPv4
-                    'extractor_args': {
-                        'youtube': {
-                            'player_client': [client_str] if "," not in client_str else client_str.split(","),
-                            'player_skip': ['webpage', 'configs'],
-                        }
-                    },
-                    'http_headers': {
-                        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-                        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-                        'Accept-Language': 'en-US,en;q=0.9',
-                        'Referer': 'https://www.google.com/',
-                    }
-                }
-
-                if request.audio_only:
-                    ydl_opts.update({
-                        'format': 'bestaudio/best',
-                        'postprocessors': [{
-                            'key': 'FFmpegExtractAudio',
-                            'preferredcodec': 'mp3',
-                            'preferredquality': '192',
-                        }],
-                    })
-                else:
-                    ydl_opts.update({
-                        'format': 'best[ext=mp4]/best',
-                    })
+                print(f"[{VERSION}] Attempting YouTube download with client: {client_str}")
+                ydl_opts = get_ydl_opts(client_str)
                 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(url_or_search, download=True)
                     if 'entries' in info:
                         info = info['entries'][0]
                     
-                    title = info.get('title', 'media')
+                    title = info.get('title', requested_title)
                     filename = ydl.prepare_filename(info)
                     
                     if request.audio_only:
@@ -624,22 +645,65 @@ async def process_youtube(request: YouTubeRequest):
                         return {"response": "Success", "path": filename, "title": title}
             except Exception as e:
                 last_exception = e
-                print(f"Download attempt with {client_str} failed: {e}")
-                await asyncio.sleep(1) # Small delay between attempts
+                print(f"YouTube attempt with {client_str} failed: {e}")
+                await asyncio.sleep(0.5) # Small delay between attempts
                 continue
         
+        # --- FALLBACK TO SOUNDCLOUD IF YOUTUBE BLOCKED ---
+        bot_keywords = ["bot", "sign in", "confirm you're not", "cookies", "captcha", "unusual traffic"]
+        error_msg_lower = str(last_exception).lower()
+        
+        if any(k in error_msg_lower for k in bot_keywords) and requested_title != "media":
+            print(f"[{VERSION}] YouTube blocked. Attempting SoundCloud fallback for: {requested_title}")
+            try:
+                sc_query = f"scsearch1:{requested_title}"
+                sc_opts = {
+                    'outtmpl': output_tmpl,
+                    'quiet': True,
+                    'format': 'bestaudio/best',
+                    'postprocessors': [{
+                        'key': 'FFmpegExtractAudio',
+                        'preferredcodec': 'mp3',
+                        'preferredquality': '320',
+                    }],
+                }
+                with yt_dlp.YoutubeDL(sc_opts) as ydl:
+                    info = ydl.extract_info(sc_query, download=True)
+                    if 'entries' in info:
+                        info = info['entries'][0]
+                    
+                    title = info.get('title', requested_title)
+                    filename = ydl.prepare_filename(info)
+                    filename = os.path.splitext(filename)[0] + ".mp3"
+                    
+                    if not os.path.exists(filename):
+                         for f in os.listdir(DOWNLOADS_DIR):
+                            if f.startswith(file_id):
+                                filename = os.path.join(DOWNLOADS_DIR, f)
+                                break
+
+                    if os.path.exists(filename):
+                        return {
+                            "response": "Success", 
+                            "path": filename, 
+                            "title": f"{title} (SoundCloud)",
+                            "fallback": True
+                        }
+            except Exception as sc_e:
+                print(f"SoundCloud fallback failed: {sc_e}")
+
         if last_exception:
             raise last_exception
             
     except Exception as e:
         error_msg = str(e)
-        print(f"YouTube Error: {error_msg}")
+        print(f"YouTube/Audio Error: {error_msg}")
         # Common bot detection or region restriction strings
         bot_keywords = ["bot", "sign in", "confirm you're not", "cookies", "captcha", "unusual traffic", "unavailable"]
         if any(k in error_msg.lower() for k in bot_keywords):
             return {
                 "response": "Error", 
-                "message": "YouTube has detected me as a bot or the video is unavailable in this region. 🛡️\n\n*Suggestions:*\n1. Try a different search term.\n2. Try again in a few minutes.\n3. Provide a direct link instead of a name."
+                "message": "YouTube has detected me as a bot. 🛡️ SoundCloud fallback also failed. Try a direct SoundCloud link or a different title."
             }
         return {"response": "Error", "message": f"Download failed: {error_msg[:100]}..." }
 
