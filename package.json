@@ -6,7 +6,10 @@
   "main": "index.js",
   "scripts": {
     "start": "concurrently \"./venv/bin/uvicorn ai_service:app --host 0.0.0.0 --port 8080\" \"node index.js\"",
-    "postinstall": "python3 -m venv venv && ./venv/bin/pip install -r requirements.txt"
+    "postinstall": "(python3 -m venv venv || python -m venv venv) && ./venv/bin/pip install -r requirements.txt"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "keywords": [],
   "author": "Ives van Hoorne",
@@ -20,6 +23,7 @@
     "groq-sdk": "^1.2.0",
     "mongodb": "^7.2.0",
     "node-cron": "^4.2.1",
+    "node-fetch": "^3.3.2",
     "pino": "^10.3.1",
     "qrcode-terminal": "^0.12.0"
   }

@@ -19,6 +19,7 @@ import readline from "readline";
 import express from "express";
 const app = express();
 const port = process.env.PORT || 3000;
+const fetchFn = globalThis.fetch || (await import("node-fetch")).fetch;
 
 app.get("/", (req, res) => res.send("Beyond the Verse AI is Live!"));
 app.listen(port, () => console.log(`🌐 Server running on port ${port}`));
@@ -49,7 +50,7 @@ async function waitForBackend() {
   let ready = false;
   while (!ready) {
     try {
-      const response = await fetch("http://127.0.0.1:8080/health");
+      const response = await fetchFn("http://127.0.0.1:8080/health");
       if (response.ok) {
         ready = true;
         console.log("✅ Python AI Core is online and ready!");
@@ -65,7 +66,7 @@ async function fetchWithTimeout(url, options = {}, timeout = 60000) {
   const controller = new AbortController();
   const id = setTimeout(() => controller.abort(), timeout);
   try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
+    const response = await fetchFn(url, { ...options, signal: controller.signal });
     clearTimeout(id);
     return response;
   } catch (error) {
@@ -106,6 +107,13 @@ loadSessions();
 // ----------------------------------------------------
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 const tvly = tavily({ apiKey: process.env.TAVILY_API_KEY });
+
+if (!process.env.GROQ_API_KEY) {
+  console.warn("⚠️ Warning: GROQ_API_KEY is not set. Some AI features may fail or return limited responses.");
+}
+if (!process.env.TAVILY_API_KEY) {
+  console.warn("⚠️ Warning: TAVILY_API_KEY is not set. Search and research fallbacks may be limited.");
+}
 
 const systemInstruction = `You are the official AI guide for 'Beyond the Verse'. Answer deep questions about science, the universe, consciousness, and existential philosophy.
   
@@ -1418,6 +1426,10 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 // 🛡️ Global unhandled rejection handler to keep the bot alive
 process.on("unhandledRejection", (reason, promise) => {
   console.error("Unhandled Rejection at:", promise, "reason:", reason);
+});
+
+process.on("uncaughtException", (error) => {
+  console.error("Uncaught Exception:", error);
 });
 
 // ----------------------------------------------------

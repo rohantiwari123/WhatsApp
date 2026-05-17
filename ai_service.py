@@ -3,13 +3,12 @@ import os
 import requests
 import subprocess
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, SecretStr
 from typing import List, Optional
 from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 from langchain_tavily import TavilySearch
 from langchain_classic.agents import AgentExecutor, create_react_agent
-from langchain_classic import hub
 from bs4 import BeautifulSoup
 from dotenv import load_dotenv
 
@@ -17,32 +16,96 @@ load_dotenv()
 
 app = FastAPI(title="Beyond the Verse AI Core")
 
+
+def normalize_agent_response(result):
+    if isinstance(result, dict):
+        return result.get("output") or result.get("text") or str(result)
+    return str(result)
+
 # Ensure downloads directory exists with absolute path
 DOWNLOADS_DIR = os.path.abspath("downloads")
 os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
 groq_api_key = os.getenv("GROQ_API_KEY")
+secret_groq_api_key = SecretStr(groq_api_key) if groq_api_key else None
 tavily_api_key = os.getenv("TAVILY_API_KEY")
+HUGGINGFACE_API_KEY = os.getenv("HUGGINGFACE_API_KEY")
+HUGGINGFACE_MODEL = os.getenv("HUGGINGFACE_MODEL", "google/flan-t5-small")
 
 if not groq_api_key:
     print("Warning: GROQ_API_KEY not found.")
 if not tavily_api_key:
     print("Warning: TAVILY_API_KEY not found.")
+if not HUGGINGFACE_API_KEY:
+    print("Info: HUGGINGFACE_API_KEY is not set. Hugging Face fallback will not be available.")
 
 from groq import Groq
 from langchain_core.prompts import PromptTemplate
+
+def prompt_from_messages(messages):
+    parts = []
+    for msg in messages:
+        role = getattr(msg, "type", None) or getattr(msg, "role", "user")
+        content = getattr(msg, "content", str(msg))
+        parts.append(f"{role.capitalize()}: {content}")
+    return "\n".join(parts) + "\nAssistant:"
+
+
+def call_huggingface(prompt):
+    if not HUGGINGFACE_API_KEY:
+        raise ValueError("Hugging Face API key is not configured.")
+    url = f"https://api-inference.huggingface.co/models/{HUGGINGFACE_MODEL}"
+    headers = {
+        "Authorization": f"Bearer {HUGGINGFACE_API_KEY}",
+        "Content-Type": "application/json",
+    }
+    payload = {
+        "inputs": prompt,
+        "parameters": {
+            "max_new_tokens": 256,
+            "temperature": 0.7,
+            "top_p": 0.9,
+            "return_full_text": False,
+        },
+        "options": {"wait_for_model": True},
+    }
+    response = requests.post(url, headers=headers, json=payload, timeout=60)
+    response.raise_for_status()
+    data = response.json()
+    if isinstance(data, dict) and data.get("error"):
+        raise ValueError(data["error"])
+    if isinstance(data, list) and len(data) > 0:
+        output = data[0].get("generated_text") or data[0].get("text")
+        if output:
+            return output.strip()
+    if isinstance(data, dict):
+        return data.get("generated_text") or data.get("text") or str(data)
+    return str(data)
+
+
+def get_chat_response(messages):
+    if groq_api_key and chat_model:
+        try:
+            response = chat_model.invoke(messages)
+            return response.content
+        except Exception as groq_err:
+            print(f"Groq chat failed, falling back to Hugging Face: {groq_err}")
+    if HUGGINGFACE_API_KEY:
+        prompt = prompt_from_messages(messages)
+        return call_huggingface(prompt)
+    raise HTTPException(status_code=500, detail="No AI backend configured. Set GROQ_API_KEY or HUGGINGFACE_API_KEY.")
 
 # Initialize Groq client for specialized tasks (like transcription)
 groq_client = Groq(api_key=groq_api_key)
 
 # Models
 try:
-    chat_model = ChatGroq(temperature=0.7, groq_api_key=groq_api_key, model_name="llama-3.3-70b-versatile")
-    vision_model = ChatGroq(temperature=0.7, groq_api_key=groq_api_key, model_name="llama-3.2-11b-vision-preview")
+    chat_model = ChatGroq(temperature=0.7, api_key=secret_groq_api_key, model="llama-3.3-70b-versatile")
+    vision_model = ChatGroq(temperature=0.7, api_key=secret_groq_api_key, model="llama-3.2-11b-vision-preview")
 except Exception as e:
     print(f"Error initializing models: {e}")
     # Fallback to a common model if initialization fails
-    chat_model = ChatGroq(temperature=0.7, groq_api_key=groq_api_key, model_name="llama-3.1-8b-instant")
+    chat_model = ChatGroq(temperature=0.7, api_key=secret_groq_api_key, model="llama-3.1-8b-instant")
     vision_model = None
 
 # --- Agent Setup ---
@@ -301,8 +364,8 @@ async def process_chat(request: ChatRequest):
         
         messages.append(HumanMessage(content=request.message))
         
-        response = chat_model.invoke(messages)
-        return {"response": response.content}
+        response_text = get_chat_response(messages)
+        return {"response": response_text}
     except Exception as e:
         print(f"Chat Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -361,7 +424,7 @@ async def process_research(request: ResearchRequest):
         Include sections: *Current Understanding*, *Open Questions*, and *Existential Conclusion*."""
         
         result = agent_executor.invoke({"input": agent_prompt})
-        return {"response": result["output"]}
+        return {"response": normalize_agent_response(result)}
     except Exception as e:
         print(f"Research Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -411,7 +474,7 @@ async def process_news(request: NewsRequest):
         agent_prompt = f"Fetch the latest news and updates about: '{request.topic}'. Summarize the top 3-5 key points concisely. Strictly follow WhatsApp formatting (*bold*, _italic_)."
         
         result = agent_executor.invoke({"input": agent_prompt})
-        return {"response": result["output"]}
+        return {"response": normalize_agent_response(result)}
     except Exception as e:
         print(f"News Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -505,7 +568,7 @@ async def process_transcribe(request: TranscribeRequest):
                 model="whisper-large-v3",
                 response_format="text",
             )
-        return {"text": transcription}
+        return {"text": transcription if isinstance(transcription, str) else transcription.get("text", str(transcription))}
     except Exception as e:
         print(f"Transcription Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
