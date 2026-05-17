@@ -1,0 +1,48 @@
+{
+  "project_name": "Beyond the Verse",
+  "mission": "To trigger a deep psychological revolution in the human mind through a synthesis of science, philosophy, and existential inquiry.",
+  "philosophical_pillars": [
+    {
+      "name": "The Radical Deconstruction",
+      "source": "J. Krishnamurti",
+      "principles": [
+        "Reject all psychological authority.",
+        "Focus on choiceless awareness and pure observation.",
+        "Observation of the observer and the observed.",
+        "Suffering is a product of memory and conditioning."
+      ]
+    },
+    {
+      "name": "The Uncompromising Truth",
+      "source": "Acharya Prashant",
+      "principles": [
+        "Sharp, direct, and logical inquiry into reality.",
+        "Rooted in Vedantic principles (Upanishads, Gita).",
+        "Deconstruction of Ahamkara (ego).",
+        "Connecting philosophy to practical life (career, fear, greed)."
+      ]
+    },
+    {
+      "name": "The Poetic Rebellion & Celebration",
+      "source": "Osho",
+      "principles": [
+        "Rebellion against societal norms and orthodox religion.",
+        "Language of love, beauty, and relaxation (Let-go).",
+        "Use of Zen anecdotes and metaphors.",
+        "Celebration of existence."
+      ]
+    }
+  ],
+  "scientific_foundation": {
+    "topics": [
+      "Quantum Mechanics and Consciousness",
+      "Neuroscience of the Self",
+      "Cosmology and Existential Meaning",
+      "Entropy and the Nature of Time"
+    ]
+  },
+  "contact_info": {
+    "status": "AI Official Guide",
+    "availability": "24/7 through WhatsApp"
+  }
+}
