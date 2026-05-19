@@ -1454,7 +1454,17 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
           const data = await response.json();
           text = data.text; // Use the transcription as the text input for the AI
 
-          await sock.sendMessage(senderId, { text: `🎙️ *I heard:* "_${text}_"` }, { quoted: msg });
+          // 🧠 Learn from the Voice Note (Social Context)
+          const senderName = msg.pushName || msg.key.participant?.split("@")[0] || senderId.split("@")[0];
+          let target = isGroup ? "Everyone" : "Bot/Private";
+          autoSaveKnowledge(`[Voice Note]: ${text}`, senderName, target, isGroup ? senderId : "Private");
+
+          if (!isGroup) {
+            await sock.sendMessage(senderId, { text: `🎙️ *Hearing:* "_${text}_"` }, { quoted: msg });
+          }
+
+          // Flag to indicate we should reply with Voice
+          msg.isVoiceRequest = true;
 
           // Now proceed to the Normal Chat logic with the transcribed text
         } catch (e) {
@@ -1565,7 +1575,37 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         userSessions.set(senderId, session);
         saveSessions();
 
-        await sock.sendMessage(senderId, { text: aiResponse }, { quoted: msg });
+        // 🎙️ RESPOND WITH VOICE IF IT WAS A VOICE REQUEST
+        if (msg.isVoiceRequest) {
+          const tempTTS = `./downloads/voice_out_${Date.now()}.mp3`;
+          try {
+            const ttsResponse = await fetchWithTimeout("http://127.0.0.1:8080/tts", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: aiResponse }),
+            });
+
+            if (ttsResponse.ok) {
+              const buffer = await ttsResponse.arrayBuffer();
+              fs.writeFileSync(tempTTS, Buffer.from(buffer));
+
+              await sock.sendMessage(senderId, { 
+                audio: fs.readFileSync(tempTTS), 
+                mimetype: "audio/mp4", 
+                ptt: true 
+              }, { quoted: msg });
+            } else {
+              await sock.sendMessage(senderId, { text: aiResponse }, { quoted: msg });
+            }
+          } catch (ttsErr) {
+            console.error("TTS Response Error:", ttsErr);
+            await sock.sendMessage(senderId, { text: aiResponse }, { quoted: msg });
+          } finally {
+            if (fs.existsSync(tempTTS)) fs.unlinkSync(tempTTS);
+          }
+        } else {
+          await sock.sendMessage(senderId, { text: aiResponse }, { quoted: msg });
+        }
 
         // Change reaction to sparkles on success
         await sock.sendMessage(senderId, {
