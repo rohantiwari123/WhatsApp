@@ -42,6 +42,29 @@ let userSessions = new Map();
 let audioSearchStates = new Map(); // Track /song or /ringtone search results for users
 let groupMsgBuffer = new Map(); // Store last 20 messages per group for summary
 let messageLog = new Map(); // For anti-spam tracking
+let msgStore = new Map(); // For anti-delete feature
+const MAX_STORE_SIZE = 500;
+let msgIds = [];
+
+function saveToStore(id, msg) {
+  if (msgStore.has(id)) return;
+  msgStore.set(id, msg);
+  msgIds.push(id);
+  if (msgIds.length > MAX_STORE_SIZE) {
+    const oldestId = msgIds.shift();
+    msgStore.delete(oldestId);
+  }
+}
+
+// Helper to get real content from wrapped messages (viewOnce, ephemeral, etc.)
+function getRealMessage(m) {
+  if (!m) return null;
+  if (m.viewOnceMessage) return m.viewOnceMessage.message;
+  if (m.viewOnceMessageV2) return m.viewOnceMessageV2.message;
+  if (m.viewOnceMessageV2Extension) return m.viewOnceMessageV2Extension.message;
+  if (m.ephemeralMessage) return m.ephemeralMessage.message;
+  return m;
+}
 const TOXIC_WORDS = ["chutiya", "gandu", "bsdk", "fuck", "bitch", "porn"]; // Basic filter, can be expanded
 
 // Wait for Python Backend to be ready
@@ -387,6 +410,78 @@ async function connectToWhatsApp() {
       const msg = m.messages[0];
 
       if (!msg.message || msg.key.fromMe) return;
+
+      // ----------------------------------------------------
+      // 🛡️ ANTI-DELETE SYSTEM (DETECTION & RECOVERY)
+      // ----------------------------------------------------
+      if (msg.message.protocolMessage?.type === 0) {
+        const deletedMsgId = msg.message.protocolMessage.key.id;
+        const originalMsg = msgStore.get(deletedMsgId);
+
+        if (originalMsg) {
+          const chatJid = msg.key.remoteJid;
+          const participant = originalMsg.key.participant || originalMsg.key.remoteJid;
+          const name = originalMsg.pushName || "User";
+
+          console.log(`🚨 Anti-Delete: Recovering message ${deletedMsgId} in ${chatJid}`);
+
+          await sock.sendMessage(chatJid, { 
+            text: `🚨 *Anti-Delete Detected!* \n\n*User:* @${participant.split("@")[0]} (${name}) deleted a message.`, 
+            mentions: [participant] 
+          });
+
+          const realContent = getRealMessage(originalMsg.message);
+          const msgType = Object.keys(realContent || {})[0];
+
+          if (msgType === "conversation" || msgType === "extendedTextMessage") {
+            const deletedText = realContent.conversation || realContent.extendedTextMessage?.text;
+            await sock.sendMessage(chatJid, { text: `📜 *Deleted Text:* \n\n${deletedText}` });
+          } else if (originalMsg.mediaBuffer) {
+            if (msgType === "imageMessage") {
+              await sock.sendMessage(chatJid, { image: originalMsg.mediaBuffer, caption: realContent.imageMessage.caption || "Deleted Image" });
+            } else if (msgType === "videoMessage") {
+              await sock.sendMessage(chatJid, { video: originalMsg.mediaBuffer, caption: realContent.videoMessage.caption || "Deleted Video" });
+            } else if (msgType === "audioMessage") {
+              await sock.sendMessage(chatJid, { audio: originalMsg.mediaBuffer, mimetype: realContent.audioMessage.mimetype, ptt: realContent.audioMessage.ptt });
+            } else if (msgType === "stickerMessage") {
+              await sock.sendMessage(chatJid, { sticker: originalMsg.mediaBuffer });
+            } else if (msgType === "documentMessage") {
+              await sock.sendMessage(chatJid, { document: originalMsg.mediaBuffer, mimetype: realContent.documentMessage.mimetype, fileName: realContent.documentMessage.fileName });
+            }
+          } else {
+             if (msgType && msgType.includes("Message") && msgType !== "protocolMessage") {
+                await sock.sendMessage(chatJid, { text: "⚠️ Deleted message was media, but it was removed before I could capture it." });
+             }
+          }
+        }
+        return;
+      }
+
+      // Save message for future recovery
+      const messageCopy = JSON.parse(JSON.stringify(msg));
+      saveToStore(msg.key.id, messageCopy);
+
+      const realMsg = getRealMessage(msg.message);
+      const isMediaMessage = !!(
+        realMsg?.imageMessage || 
+        realMsg?.videoMessage || 
+        realMsg?.audioMessage || 
+        realMsg?.stickerMessage || 
+        realMsg?.documentMessage
+      );
+
+      if (isMediaMessage) {
+        (async () => {
+          try {
+            const buffer = await downloadMediaMessage(msg, "buffer", {}, { reuploadRequest: sock.updateMediaMessage });
+            if (msgStore.has(msg.key.id)) {
+              msgStore.get(msg.key.id).mediaBuffer = buffer;
+            }
+          } catch (e) {
+            console.error(`❌ Failed background download for anti-delete (${msg.key.id}):`, e.message);
+          }
+        })();
+      }
 
       const senderId = msg.key.remoteJid;
       const myId = sock.user?.id;
