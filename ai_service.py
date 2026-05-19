@@ -485,7 +485,7 @@ async def process_quiz(request: QuizRequest):
 @app.post("/tts")
 async def process_tts(request: TTSRequest):
     try:
-        from gtts import gTTS
+        import edge_tts
         import uuid
         from fastapi.responses import FileResponse
 
@@ -493,8 +493,12 @@ async def process_tts(request: TTSRequest):
         mp3_filename = os.path.join(DOWNLOADS_DIR, f"{file_id}.mp3")
         ogg_filename = os.path.join(DOWNLOADS_DIR, f"{file_id}.ogg")
 
-        tts = gTTS(text=request.text, lang='hi', slow=False)
-        tts.save(mp3_filename)
+        # Use Microsoft Edge Neural Voice for more human-like sound
+        # hi-IN-MadhurNeural (Male) or hi-IN-SwaraNeural (Female)
+        VOICE = "hi-IN-MadhurNeural"
+
+        communicate = edge_tts.Communicate(request.text, VOICE)
+        await communicate.save(mp3_filename)
 
         # Convert to OGG Opus for native WhatsApp voice note support with HD quality
         try:
@@ -520,6 +524,7 @@ async def process_tts(request: TTSRequest):
     except Exception as e:
         print(f"TTS Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/fact")
 async def process_fact():
     try:
