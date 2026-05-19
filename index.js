@@ -56,6 +56,37 @@ function saveToStore(id, msg) {
   }
 }
 
+// 🧠 AUTO-LEARN HELPER
+function autoSaveKnowledge(text, sender, target = "Everyone", groupName = "Private") {
+    if (!text || text.length < 5 || text.startsWith("/")) return; // Ignore commands and tiny messages
+    try {
+        const KNOWLEDGE_FILE = "./knowledge.json";
+        let knowledge = {};
+        if (fs.existsSync(KNOWLEDGE_FILE)) {
+            knowledge = JSON.parse(fs.readFileSync(KNOWLEDGE_FILE, "utf-8"));
+        }
+        
+        if (!knowledge.auto_memory) knowledge.auto_memory = [];
+        
+        knowledge.auto_memory.push({
+            content: text,
+            from: sender,
+            to: target,
+            group: groupName,
+            time: new Date().toISOString()
+        });
+        
+        // Keep only the last 150 auto-learned messages for better social context
+        if (knowledge.auto_memory.length > 150) {
+            knowledge.auto_memory.shift();
+        }
+        
+        fs.writeFileSync(KNOWLEDGE_FILE, JSON.stringify(knowledge, null, 2), "utf-8");
+    } catch (e) {
+        console.error("Auto-Learn Logic Error:", e);
+    }
+}
+
 // Helper to get real content from wrapped messages (viewOnce, ephemeral, etc.)
 function getRealMessage(m) {
   if (!m) return null;
@@ -502,6 +533,28 @@ async function connectToWhatsApp() {
       const messageType = Object.keys(msg.message)[0];
       const cleanBotNumber = myId.split(":")[0].split("@")[0];
       const isGroup = senderId.endsWith("@g.us");
+
+      // 🧠 AUTOMATIC LEARNING (CAPTURE EVERYTHING WITH SOCIAL CONTEXT)
+      if (text && !msg.key.fromMe) {
+          const senderName = msg.pushName || msg.key.participant?.split("@")[0] || senderId.split("@")[0];
+          
+          // Identify Target (Recipient)
+          let target = isGroup ? "Everyone" : "Bot/Private";
+          
+          // If it's a reply to someone
+          const quotedMsg = msg.message?.extendedTextMessage?.contextInfo?.participant;
+          if (quotedMsg) {
+              target = `@${quotedMsg.split("@")[0]}`;
+          } else {
+              // If someone is mentioned
+              const mentions = msg.message?.extendedTextMessage?.contextInfo?.mentionedJid || [];
+              if (mentions.length > 0) {
+                  target = mentions.map(m => `@${m.split("@")[0]}`).join(", ");
+              }
+          }
+
+          autoSaveKnowledge(text, senderName, target, isGroup ? senderId : "Private");
+      }
 
       // ----------------------------------------------------
       // 🛡️ ADMIN FEATURE: ANTI-SPAM & TOXICITY (GROUP ONLY)
