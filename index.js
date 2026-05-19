@@ -1687,7 +1687,9 @@ STRICT GUIDELINES:
 You must return ONLY a valid JSON object. Do not include markdown code blocks. Format:
 {
   "question": "The deep Hindi question?",
-  "options": ["Option 1 in Hindi", "Option 2 in Hindi", "Option 3 in Hindi", "Option 4 in Hindi"]
+  "options": ["Option 1 in Hindi", "Option 2 in Hindi", "Option 3 in Hindi", "Option 4 in Hindi"],
+  "correct_answer": "The exact text of the correct option",
+  "explanation": "A deep, 2-3 sentence philosophical/scientific explanation in Hindi."
 }`;
 
       const pollCompletion = await groq.chat.completions.create({
@@ -1703,6 +1705,20 @@ You must return ONLY a valid JSON object. Do not include markdown code blocks. F
         .trim();
 
       const pollData = JSON.parse(responseText);
+      
+      // 💾 STORE POLL ANSWER FOR LATER REVEAL
+      try {
+        const pollStorage = {
+          question: pollData.question,
+          options: pollData.options,
+          correct_answer: pollData.correct_answer, // AI now generates this
+          explanation: pollData.explanation,       // AI now provides deep insight
+          timestamp: new Date().toISOString()
+        };
+        fs.writeFileSync("./current_poll.json", JSON.stringify(pollStorage, null, 2));
+      } catch (e) {
+        console.error("Error storing poll answer:", e);
+      }
 
       await globalSock.sendMessage(TARGET_GROUP_JID, {
         poll: {
@@ -1714,6 +1730,41 @@ You must return ONLY a valid JSON object. Do not include markdown code blocks. F
       console.log("✅ सुबह का पोल सफलतापूर्वक ग्रुप में भेज दिया गया है!");
     } catch (error) {
       console.error("❌ Poll Generation Error:", error);
+    }
+  },
+  { timezone: "Asia/Kolkata" }
+);
+
+// 🌙 POLL ANSWER REVEAL: 9:00 PM (21:00)
+cron.schedule(
+  "0 21 * * *",
+  async () => {
+    if (!globalSock) return;
+    const POLL_FILE = "./current_poll.json";
+    const TARGET_GROUP_JID = "120363407323762269@g.us";
+
+    if (fs.existsSync(POLL_FILE)) {
+      try {
+        const pollData = JSON.parse(fs.readFileSync(POLL_FILE, "utf-8"));
+        
+        const revealMessage = `🎯 *Beyond the Verse: जिज्ञासा का समाधान*
+
+*सवाल:* ${pollData.question}
+
+✅ *सही उत्तर:* ${pollData.correct_answer}
+
+🧠 *गहराई:* ${pollData.explanation}
+
+✨ _आशा है कि इस जिज्ञासा ने आज आपके भीतर एक नया द्वार खोला होगा।_`;
+
+        await globalSock.sendMessage(TARGET_GROUP_JID, { text: revealMessage });
+        console.log("✅ आज के पोल का उत्तर सफलतापूर्वक रिवील कर दिया गया है!");
+        
+        // Cleanup file after reveal
+        fs.unlinkSync(POLL_FILE);
+      } catch (e) {
+        console.error("Error revealing poll answer:", e);
+      }
     }
   },
   { timezone: "Asia/Kolkata" }
