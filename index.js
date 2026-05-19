@@ -639,7 +639,7 @@ async function connectToWhatsApp() {
 
       // Clean text (remove mentions)
       text = text.replace(/@\S+/g, "").trim();
-      const rawText = text; // Keep a clean version without quoted formatting for commands
+      let rawText = text; // Keep a clean version without quoted formatting for commands
 
       // Context from quoted messages
       const quotedMessageInfo =
@@ -671,7 +671,7 @@ async function connectToWhatsApp() {
         text = "नमस्ते! मैं 'Beyond the Verse' का AI गाइड हूँ।";
       }
 
-      if (!rawText && !hasImage) {
+      if (!rawText && !hasImage && !isAudioMessage && !isDocumentMessage) {
         console.log(`⏭️ Skipping empty message from ${senderId}.`);
         return;
       }
@@ -1453,6 +1453,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 
           const data = await response.json();
           text = data.text; // Use the transcription as the text input for the AI
+          rawText = text; // Update rawText for downstream logic
 
           // 🧠 Learn from the Voice Note (Social Context)
           const senderName = msg.pushName || msg.key.participant?.split("@")[0] || senderId.split("@")[0];
