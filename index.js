@@ -1573,7 +1573,7 @@ cron.schedule(
     );
 
     try {
-      const TARGET_GROUP_JID = "120363427798992883@g.us";
+      const TARGET_GROUP_JID = "120363407323762269@g.us";
       
       // Open Group for dialogue (Sunrise)
       try {
@@ -1581,13 +1581,33 @@ cron.schedule(
         await globalSock.sendMessage(TARGET_GROUP_JID, { text: "🌅 *The Dawn of Inquiry:* The group is now open for conscious dialogue. Let our words reflect clarity and purpose. ✨" });
       } catch (e) { console.error("Error opening group:", e); }
 
-      const pollPrompt = `Create a deep, thought-provoking multiple-choice question for the 'Beyond the Verse' WhatsApp community. 
-The topic MUST blend Science (quantum mechanics, neuroscience, etc.), Philosophy (existentialism, consciousness), and practical human life.
+      // ----------------------------------------------------
+      // 🧬 KNOWLEDGE-BASED POLL GENERATION
+      // ----------------------------------------------------
+      let knowledgeContext = "";
+      try {
+        if (fs.existsSync("./knowledge.json")) {
+          knowledgeContext = fs.readFileSync("./knowledge.json", "utf-8");
+        }
+      } catch (e) {
+        console.error("Error reading knowledge for poll:", e);
+      }
+
+      const pollPrompt = `Create a deep, thought-provoking multiple-choice question (Poll) in HINDI for the 'Beyond the Verse' WhatsApp community. 
+
+CONTEXT FROM KNOWLEDGE BASE:
+${knowledgeContext}
+
+STRICT GUIDELINES:
+1. The question must blend Science (Vigyan - quantum mechanics, neuroscience, cosmology) and Philosophy (Darshan - existence, consciousness, truth).
+2. The language MUST be pure Hindi (with subtle depth).
+3. The options should be challenging and encourage deep thinking.
+4. Focus on the core pillars of Beyond the Verse.
 
 You must return ONLY a valid JSON object. Do not include markdown code blocks. Format:
 {
-  "question": "The thought-provoking question?",
-  "options": ["Option A", "Option B", "Option C", "Option D"]
+  "question": "The deep Hindi question?",
+  "options": ["Option 1 in Hindi", "Option 2 in Hindi", "Option 3 in Hindi", "Option 4 in Hindi"]
 }`;
 
       const pollCompletion = await groq.chat.completions.create({
@@ -1606,7 +1626,7 @@ You must return ONLY a valid JSON object. Do not include markdown code blocks. F
 
       await globalSock.sendMessage(TARGET_GROUP_JID, {
         poll: {
-          name: `🌌 *Beyond the Verse: Daily Quest*\n\n${pollData.question}`,
+          name: `🌌 *Beyond the Verse: दैनिक जिज्ञासा*\n\n${pollData.question}`,
           values: pollData.options,
           selectableCount: 1,
         },
@@ -1626,7 +1646,7 @@ cron.schedule(
     if (!globalSock) return;
     console.log("🌙 रात के 11 बज गए हैं! समूह में मौन का समय है।");
     try {
-      const TARGET_GROUP_JID = "120363427798992883@g.us";
+      const TARGET_GROUP_JID = "120363407323762269@g.us";
       await globalSock.groupSettingUpdate(TARGET_GROUP_JID, 'announcement');
       await globalSock.sendMessage(TARGET_GROUP_JID, { text: "🌙 *The Night of Silence:* Discussion is now paused for rest and reflection. We shall reunite at dawn. Let your mind find peace in stillness. ✨" });
     } catch (e) {
