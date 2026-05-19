@@ -1346,44 +1346,30 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
             body: JSON.stringify({ text: ttsText }),
           });
 
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(`TTS API Error: ${response.status} ${errorData.detail || ""}`);
-          }
+          if (!response.ok) throw new Error(`TTS API Error: ${response.status}`);
 
-          const data = await response.json();
-          const audioPath = data.path;
+          const buffer = await response.arrayBuffer();
+          const tempTTS = `./downloads/tts_cmd_${Date.now()}.ogg`;
+          fs.writeFileSync(tempTTS, Buffer.from(buffer));
 
-          if (fs.existsSync(audioPath)) {
-            try {
-              await sock.sendMessage(
-                senderId,
-                {
-                  audio: fs.readFileSync(audioPath),
-                  mimetype: 'audio/ogg; codecs=opus', // Native WhatsApp voice note format
-                  ptt: true, // Send as a voice note
-                },
-                { quoted: msg }
-              );
-              await sock.sendMessage(senderId, { react: { text: "🎙️", key: msg.key } });
-            } finally {
-              if (fs.existsSync(audioPath)) {
-                try {
-                  fs.unlinkSync(audioPath);
-                } catch (unlinkError) {
-                  console.error("Failed to delete temporary audio file:", unlinkError);
-                }
-              }
-            }
-          } else {
-            throw new Error(`Generated audio file not found at: ${audioPath}`);
-          }
+          await sock.sendMessage(
+            senderId,
+            {
+              audio: fs.readFileSync(tempTTS),
+              mimetype: 'audio/ogg; codecs=opus',
+              ptt: true,
+            },
+            { quoted: msg }
+          );
+          await sock.sendMessage(senderId, { react: { text: "🎙️", key: msg.key } });
+          
+          if (fs.existsSync(tempTTS)) fs.unlinkSync(tempTTS);
           return;
         } catch (e) {
           console.error("TTS Command Error:", e);
           await sock.sendMessage(
             senderId,
-            { text: `⚠️ वॉइस जनरेट करने में समस्या आ रही है। (${e.message})` },
+            { text: `⚠️ वॉइस जनरेट करने में समस्या आ रही है।` },
             { quoted: msg }
           );
           await sock.sendMessage(senderId, { react: { text: "❌", key: msg.key } });
@@ -1592,7 +1578,7 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 
               await sock.sendMessage(senderId, { 
                 audio: fs.readFileSync(tempTTS), 
-                mimetype: "audio/mp4", 
+                mimetype: "audio/ogg; codecs=opus", 
                 ptt: true 
               }, { quoted: msg });
             } else {

@@ -487,14 +487,15 @@ async def process_tts(request: TTSRequest):
     try:
         from gtts import gTTS
         import uuid
-        
+        from fastapi.responses import FileResponse
+
         file_id = str(uuid.uuid4())
         mp3_filename = os.path.join(DOWNLOADS_DIR, f"{file_id}.mp3")
         ogg_filename = os.path.join(DOWNLOADS_DIR, f"{file_id}.ogg")
-        
+
         tts = gTTS(text=request.text, lang='hi', slow=False)
         tts.save(mp3_filename)
-        
+
         # Convert to OGG Opus for native WhatsApp voice note support with HD quality
         try:
             subprocess.run([
@@ -506,19 +507,19 @@ async def process_tts(request: TTSRequest):
                 "-page_duration", "20000", # Helps with seeking/duration
                 ogg_filename, "-y"
             ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+            # Clean up mp3
+            if os.path.exists(mp3_filename):
+                os.remove(mp3_filename)
+
+            return FileResponse(ogg_filename, media_type="audio/ogg")
         except Exception as conv_error:
             print(f"Conversion Error: {conv_error}")
-            return {"response": "Success", "path": mp3_filename} # Fallback
-            
-        # Clean up mp3
-        if os.path.exists(mp3_filename) and os.path.exists(ogg_filename):
-            os.remove(mp3_filename)
-        
-        return {"response": "Success", "path": ogg_filename if os.path.exists(ogg_filename) else mp3_filename}
+            return FileResponse(mp3_filename, media_type="audio/mpeg") # Fallback
+
     except Exception as e:
         print(f"TTS Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/fact")
 async def process_fact():
     try:
