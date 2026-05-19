@@ -666,7 +666,8 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
 12. */ringtone [Name/URL]* - Downloads audio from YouTube.
 13. */fact* - Get a deep scientific or philosophical fact.
 14. */ping* - Check if the bot is alive.
-15. */help* - Shows this guide.
+15. */learn [text]* - Teach the bot new facts/information.
+16. */help* - Shows this guide.
 
 *GROUP & ADMIN FEATURES:*
 1.  */everyone* - Tag all members (Admins only).
@@ -775,6 +776,42 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
       if (rawText.toLowerCase() === "/ping") {
         await sock.sendMessage(senderId, { text: "🏓 *Pong!* I am online and ready. ✨" }, { quoted: msg });
         await sock.sendMessage(senderId, { react: { text: "⚡", key: msg.key } });
+        return;
+      }
+
+      // 🧠 COMMAND: /learn (Teach the bot new information)
+      if (rawText.toLowerCase().startsWith("/learn ")) {
+        const learnContent = rawText.slice(7).trim();
+        if (!learnContent) {
+          await sock.sendMessage(senderId, { text: "⚠️ Please provide some knowledge for me to absorb. Usage: */learn [your text]*" }, { quoted: msg });
+          return;
+        }
+
+        try {
+          const KNOWLEDGE_FILE = "./knowledge.json";
+          let knowledge = {};
+          if (fs.existsSync(KNOWLEDGE_FILE)) {
+            knowledge = JSON.parse(fs.readFileSync(KNOWLEDGE_FILE, "utf-8"));
+          }
+
+          if (!knowledge.learned_facts) {
+            knowledge.learned_facts = [];
+          }
+
+          knowledge.learned_facts.push({
+            content: learnContent,
+            timestamp: new Date().toISOString(),
+            contributor: msg.pushName || senderId.split("@")[0]
+          });
+
+          fs.writeFileSync(KNOWLEDGE_FILE, JSON.stringify(knowledge, null, 2), "utf-8");
+          
+          await sock.sendMessage(senderId, { text: "✅ *Knowledge Absorbed!* I have integrated this information into my memory. Ask me about it anytime. 🧠✨" }, { quoted: msg });
+          await sock.sendMessage(senderId, { react: { text: "🎓", key: msg.key } });
+        } catch (e) {
+          console.error("Learn Error:", e);
+          await sock.sendMessage(senderId, { text: "⚠️ I encountered a mental block while trying to learn this. Please try again." }, { quoted: msg });
+        }
         return;
       }
 

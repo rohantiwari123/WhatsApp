@@ -296,16 +296,18 @@ class PDFRequest(BaseModel):
     file_path: str
     prompt: Optional[str] = None
 
-# --- RAG KNOWLEDGE BASE LOAD ---
-try:
-    with open("knowledge.json", "r") as f:
-        knowledge_text = f.read()
-except Exception as e:
-    print(f"Error loading knowledge.json: {e}")
-    knowledge_text = "{}"
+# --- RAG KNOWLEDGE BASE HELPERS ---
+def load_knowledge():
+    try:
+        with open("knowledge.json", "r") as f:
+            return f.read()
+    except Exception as e:
+        print(f"Error loading knowledge.json: {e}")
+        return "{}"
 
-# --- ENHANCED SYSTEM INSTRUCTION (RAG) ---
-system_instruction = f"""
+def get_system_instruction():
+    knowledge_text = load_knowledge()
+    return f"""
 You are the central intelligence and official guide for 'Beyond the Verse'. 
 
 CRITICAL INSTRUCTION - RAG (Retrieval-Augmented Generation):
@@ -336,7 +338,7 @@ async def health_check():
 @app.post("/chat")
 async def process_chat(request: ChatRequest):
     try:
-        messages = [SystemMessage(content=system_instruction)]
+        messages = [SystemMessage(content=get_system_instruction())]
         
         # Inject Context Summary if available
         if request.context_summary:
