@@ -103,51 +103,52 @@ groq_client = Groq(api_key=groq_api_key)
 try:
     chat_model = ChatGroq(temperature=0.7, api_key=secret_groq_api_key, model="llama-3.3-70b-versatile")
     vision_model = ChatGroq(temperature=0.7, api_key=secret_groq_api_key, model="llama-3.2-11b-vision-preview")
+    # Use 8b model for the research agent as it has a much larger context window (128k) and avoids 413 errors
+    agent_model = ChatGroq(temperature=0.3, api_key=secret_groq_api_key, model="llama-3.1-8b-instant")
 except Exception as e:
     print(f"Error initializing models: {e}")
-    # Fallback to a common model if initialization fails
     chat_model = ChatGroq(temperature=0.7, api_key=secret_groq_api_key, model="llama-3.1-8b-instant")
+    agent_model = chat_model
     vision_model = None
 
 # --- Agent Setup ---
 agent_executor = None
 try:
-    # Use 'advanced' depth for Tavily to get higher quality research results
-    search_tool = TavilySearch(max_results=8, search_depth="advanced")
+    # Use 5 results to keep context manageable even with 'advanced' depth
+    search_tool = TavilySearch(max_results=5, search_depth="advanced")
     tools = [search_tool]
 
     # Enhanced ReAct Prompt for Deep Research
     template = """You are the 'Beyond the Verse' Lead Researcher. 
-Your goal is to provide a deep, scientific, and philosophical analysis of the input.
-You have access to the following tools to gather real-time data:
+Your goal is to provide a deep, scientific, and philosophical analysis. 
+Gather data using search, synthesize it, and provide a massive report.
 
 {tools}
 
 STRICT WORKFLOW:
-1. Thought: Break down the user's query into logical research steps.
-2. Action: Use search to find multiple perspectives and data points.
-3. Observation: Carefully read the results.
-4. (Repeat if needed) Thought: Synthesize what you've found or identify what's missing.
-5. Final Answer: Provide a comprehensive, structured report in Hinglish/English.
+1. Thought: Break down query into steps.
+2. Action: Use search for data.
+3. Observation: Results from tool.
+4. (Repeat) Thought: Analyze/Synthesize.
+5. Final Answer: Structured report in Hinglish/English.
 
-Use the following format:
 Question: {input}
 Thought: {agent_scratchpad}
 Action: the action to take, should be one of [{tool_names}]
 Action Input: the input to the action
 Observation: the result of the action
-... (repeat Thought/Action/Action Input/Observation if needed)
-Thought: I now have the deep insights needed.
+... (repeat)
+Thought: I have deep insights.
 Final Answer: The complete research report.
 
-Begin your deep inquiry now!
+Begin!
 
 Question: {input}
 Thought:"""
 
     prompt_template = PromptTemplate.from_template(template)
-    agent = create_react_agent(chat_model, tools, prompt_template)
-    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True, max_iterations=10)
+    agent = create_react_agent(agent_model, tools, prompt_template)
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True, max_iterations=8)
 except Exception as e:
     print(f"Error initializing agent: {e}")
     tools = []
