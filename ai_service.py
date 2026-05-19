@@ -496,29 +496,24 @@ async def process_tts(request: TTSRequest):
 
         VOICE = "hi-IN-MadhurNeural"
 
-        # --- ENHANCED RHYTHM LOGIC (SSML) ---
-        # Adding pauses to simulate breathing and thinking
-        text = request.text
-        text = text.replace("...", " <break time='800ms'/> ")
-        text = text.replace(".", ". <break time='600ms'/> ")
-        text = text.replace(",", ", <break time='250ms'/> ")
-        text = text.replace("?", "? <break time='700ms'/> ")
-        text = text.replace("!", "! <break time='500ms'/> ")
+        # --- ENHANCED RHYTHM LOGIC (CLEAN SSML) ---
+        import xml.sax.saxutils as saxutils
 
-        # Weaving the text into SSML for better prosody
-        ssml = f"""
-        <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="hi-IN">
-            <voice name="{VOICE}">
-                <prosody rate="-15%" pitch="-3Hz">
-                    {text}
-                </prosody>
-            </voice>
-        </speak>
-        """
+        # Clean and escape the text for XML
+        clean_content = saxutils.escape(request.text)
 
-        communicate = edge_tts.Communicate(ssml, VOICE)
+        # Adding pauses to simulate breathing and thinking (Using 's' for stability)
+        clean_content = clean_content.replace("...", " <break time='0.8s'/> ")
+        clean_content = clean_content.replace(".", ". <break time='0.6s'/> ")
+        clean_content = clean_content.replace(",", ", <break time='0.3s'/> ")
+        clean_content = clean_content.replace("?", "? <break time='0.7s'/> ")
+        clean_content = clean_content.replace("!", "! <break time='0.5s'/> ")
+
+        # One-line SSML to prevent the engine from reading newlines as text
+        ssml = f"<speak version='1.0' xmlns='http://www.w3.org/2001/10/synthesis' xml:lang='hi-IN'><voice name='{VOICE}'><prosody rate='-15%' pitch='-3Hz'>{clean_content}</prosody></voice></speak>"
+
+        communicate = edge_tts.Communicate(ssml) 
         await communicate.save(mp3_filename)
-
         # Convert to OGG Opus for native WhatsApp voice note support
         try:
             subprocess.run([
