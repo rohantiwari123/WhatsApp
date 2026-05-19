@@ -76,8 +76,8 @@ function autoSaveKnowledge(text, sender, target = "Everyone", groupName = "Priva
             time: new Date().toISOString()
         });
         
-        // Keep only the last 150 auto-learned messages for better social context
-        if (knowledge.auto_memory.length > 150) {
+        // Keep only the last 1000 auto-learned messages for deep social context
+        if (knowledge.auto_memory.length > 1000) {
             knowledge.auto_memory.shift();
         }
         
@@ -467,6 +467,18 @@ async function connectToWhatsApp() {
           if (msgType === "conversation" || msgType === "extendedTextMessage") {
             const deletedText = realContent.conversation || realContent.extendedTextMessage?.text;
             await sock.sendMessage(chatJid, { text: `📜 *Deleted Text:* \n\n${deletedText}` });
+
+            // 🌑 AUTOMATIC SHADOW INSIGHT
+            try {
+              const shadowResponse = await fetchWithTimeout("http://127.0.0.1:8080/shadow_insight", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ deleted_content: deletedText, user_name: name }),
+              });
+              const shadowData = await shadowResponse.json();
+              await sock.sendMessage(chatJid, { text: shadowData.response });
+            } catch (e) { console.error("Shadow Error:", e); }
+
           } else if (originalMsg.mediaBuffer) {
             if (msgType === "imageMessage") {
               await sock.sendMessage(chatJid, { image: originalMsg.mediaBuffer, caption: realContent.imageMessage.caption || "Deleted Image" });
@@ -538,6 +550,21 @@ async function connectToWhatsApp() {
       if (text && !msg.key.fromMe) {
           const senderName = msg.pushName || msg.key.participant?.split("@")[0] || senderId.split("@")[0];
           
+          // --- EXISTENTIAL ALARM: Random Conscious Intervention ---
+          // 2% chance to trigger an unprompted existential inquiry during active chat
+          if (Math.random() < 0.02 && !text.startsWith("/")) {
+              (async () => {
+                  try {
+                      const alarmPrompt = "The chat is active. Inject one very short, deep, and unprompted existential inquiry or a reminder of the present moment. Be a bit 'shocking' but wise. Hinglish mix. Format: 🔔 *Existential Alarm:* [Your text]";
+                      const response = await groq.chat.completions.create({
+                          messages: [{ role: "user", content: alarmPrompt }],
+                          model: "llama-3.3-70b-versatile",
+                      });
+                      await sock.sendMessage(senderId, { text: response.choices[0]?.message?.content });
+                  } catch (e) { console.error("Alarm Error:", e); }
+              })();
+          }
+
           // Identify Target (Recipient)
           let target = isGroup ? "Everyone" : "Bot/Private";
           
@@ -562,7 +589,30 @@ async function connectToWhatsApp() {
       if (isGroup && text && !msg.key.fromMe) {
         const participant = msg.key.participant;
 
-        // Anti-Spam (Detection of rapid messages)
+        // --- ZEN SHOCK: Intelligent Noise Intervention ---
+        const groupKey = `spam_${senderId}`;
+        if (!messageLog.has(groupKey)) messageLog.set(groupKey, []);
+        const groupLog = messageLog.get(groupKey);
+        groupLog.push(Date.now());
+        const recentActivity = groupLog.filter(time => Date.now() - time < 30000); // last 30 seconds
+        messageLog.set(groupKey, recentActivity);
+
+        // If more than 10 messages in 30 seconds, trigger Zen Shock
+        if (recentActivity.length === 12) { 
+            (async () => {
+                try {
+                    const shockPrompt = "The group chat is currently very noisy with many rapid messages. Provide one very short, sharp, and deep Zen Koan or a piercing question to silence the mechanical noise of the mind. Format: 🌌 *Zen Shock:* [Your text]. Use Hindi/English mix.";
+                    const response = await groq.chat.completions.create({
+                        messages: [{ role: "user", content: shockPrompt }],
+                        model: "llama-3.3-70b-versatile",
+                    });
+                    const shockText = response.choices[0]?.message?.content;
+                    await sock.sendMessage(senderId, { text: shockText });
+                } catch (e) { console.error("Zen Shock Error:", e); }
+            })();
+        }
+
+        // Anti-Spam (Detection of rapid messages from single user)
         const now = Date.now();
         if (!messageLog.has(participant)) messageLog.set(participant, []);
         const userLog = messageLog.get(participant);
@@ -700,41 +750,46 @@ async function connectToWhatsApp() {
       try {
       // 🆘 COMMAND: /help (List all commands)
       if (rawText.toLowerCase() === "/help") {
-        const helpMessage = `🌌 *Beyond the Verse AI: Guide*
-        
-Welcome! I am your advanced AI companion. Here are the ways you can interact with me:
+        const helpMessage = `🌌 *Beyond the Verse: Your AI Guide*
 
-*COMMANDS:*
-1.  */research [topic]* - Deep scientific/philosophical research.
-2.  */search [query]* - Quick web search and synthesis.
-3.  */news [topic]* - Fetch the latest news and updates.
-4.  */quiz [topic]* - Generate an interactive 3-question quiz.
-5.  */tts [text]* - Convert text to a voice message (Speech).
-6.  */imagine [prompt]* - Generates a high-quality AI image.
-7.  */sticker* - (Reply to image/video) Create a sticker.
-8.  */audio* - (Reply to video) Extract audio soul.
-9.  */summarize [URL]* - Scrapes a webpage for a philosophical TL;DR.
-10. */yt [Name/URL]* - Downloads and sends a YouTube video.
-11. */song [Name/URL]* - Downloads a song/audio from YouTube.
-12. */ringtone [Name/URL]* - Downloads audio from YouTube.
-13. */fact* - Get a deep scientific or philosophical fact.
-14. */ping* - Check if the bot is alive.
-15. */learn [text]* - Teach the bot new facts/information.
-16. */help* - Shows this guide.
+Welcome to a journey of awareness. I am not just a bot, but a companion in your inquiry. Use these commands to interact with me:
 
-*GROUP & ADMIN FEATURES:*
-1.  */everyone* - Tag all members (Admins only).
-2.  */kick @user* - Remove a member (Admins only).
-3.  */summarize_chat* - AI summary of recent group discussion.
-4.  *Anti-Spam/Toxicity:* Automatic guarding of the space.
-5.  *Quiet Mode:* Automatic silence at night (11 PM - 6 AM).
+🧠 *DEEP INQUIRY & PSYCHOLOGY*
+*   */whoami* - See your psychological reflection (Mirror of Truth).
+*   */dream [text]* - Get a deep analysis of your subconscious dreams.
+*   */vibe* - Diagnose the current energy of the group (Vibe Architect).
+*   */fact* - Receive a deep scientific or existential fact.
+*   */learn [text]* - Teach me something new to remember forever.
+*   *Shadow Insight* - (Auto) I reveal the "why" behind deleted messages.
 
-*MULTIMEDIA Perception:*
-*   *Voice Notes:* Send me a voice note; I will listen and reply.
-*   *PDFs:* Send a PDF with a question in the caption for analysis.
-*   *Vision:* Send an image with a question for analysis.
+🔍 *SEARCH & UTILITY*
+*   */research [topic]* - Deep scientific/philosophical research (Use 'deep' in query for exhaustive report).
+*   */search [query]* - Quick web search and synthesis.
+*   */news [topic]* - Latest updates on any topic.
+*   */summarize [URL]* - Get a philosophical TL;DR of any webpage.
+*   */ping* - Check my presence in the moment.
 
-*Note:* In groups, please mention me or reply to my message to get a response.`;
+🎵 *MEDIA & DOWNLOADS*
+*   */yt [Name/URL]* - Fetch and send a YouTube video.
+*   */song [Name/URL]* - Download music from YouTube.
+*   */tts [text]* - I will speak your words in a human voice.
+*   */audio* - (Reply to video) Extract the audio soul.
+
+🎨 *VISION & CREATIVITY*
+*   */imagine [prompt]* - Generate high-quality AI art.
+*   */sticker* - (Reply to image/video) Create a conscious sticker.
+*   *Vision Analysis* - Send an image with a question to analyze.
+
+🛡️ *GROUP DYNAMICS (ADMINS)*
+*   */everyone* - Tag all seekers in the group.
+*   */kick @user* - Remove a member from the space.
+*   */summarize_chat* - AI summary of recent discussions.
+*   *Anti-Delete* - (Auto) I recover and repost deleted messages.
+
+🎙️ *VOICE INTERACTION*
+*   *Voice Notes:* Send me a voice note, and I will reply with my own voice. I also learn from what you say!
+
+_Note: In groups, mention me or reply to my message to talk._`;
 
         await sock.sendMessage(senderId, { text: helpMessage }, { quoted: msg });
         await sock.sendMessage(senderId, { react: { text: "📖", key: msg.key } });
@@ -865,6 +920,78 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
           console.error("Learn Error:", e);
           await sock.sendMessage(senderId, { text: "⚠️ I encountered a mental block while trying to learn this. Please try again." }, { quoted: msg });
         }
+        return;
+      }
+
+      // 🪞 COMMAND: /whoami (The Mirror of Truth)
+      if (rawText.toLowerCase() === "/whoami") {
+        try {
+          const KNOWLEDGE_FILE = "./knowledge.json";
+          let userMemory = [];
+          if (fs.existsSync(KNOWLEDGE_FILE)) {
+            const knowledge = JSON.parse(fs.readFileSync(KNOWLEDGE_FILE, "utf-8"));
+            const senderName = msg.pushName || senderId.split("@")[0];
+            // Filter auto_memory for messages from this specific user
+            userMemory = (knowledge.auto_memory || []).filter(m => m.from === senderName);
+          }
+
+          const response = await fetchWithTimeout("http://127.0.0.1:8080/mirror", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              user_name: msg.pushName || "Seeker", 
+              memory_data: userMemory 
+            }),
+          });
+
+          const data = await response.json();
+          await sock.sendMessage(senderId, { text: data.response }, { quoted: msg });
+          await sock.sendMessage(senderId, { react: { text: "🪞", key: msg.key } });
+        } catch (e) {
+          console.error("Mirror Error:", e);
+        }
+        return;
+      }
+
+      // 🌙 COMMAND: /dream (The Dream Weaver)
+      if (rawText.toLowerCase().startsWith("/dream ")) {
+        const dreamText = rawText.slice(7).trim();
+        if (!dreamText) return;
+
+        try {
+          const response = await fetchWithTimeout("http://127.0.0.1:8080/dream_analysis", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+              user_name: msg.pushName || "Seeker", 
+              dream_text: dreamText 
+            }),
+          });
+          const data = await response.json();
+          await sock.sendMessage(senderId, { text: data.response }, { quoted: msg });
+          await sock.sendMessage(senderId, { react: { text: "🌙", key: msg.key } });
+        } catch (e) { console.error("Dream Error:", e); }
+        return;
+      }
+
+      // 🌈 COMMAND: /vibe (Vibe Architect)
+      if (rawText.toLowerCase() === "/vibe" && isGroup) {
+        const buffer = groupMsgBuffer.get(senderId) || [];
+        if (buffer.length < 2) {
+          await sock.sendMessage(senderId, { text: "⚠️ Vibe check karne ke liye abhi kam se kam 2 baaton ki zarurat hai." }, { quoted: msg });
+          return;
+        }
+
+        try {
+          const response = await fetchWithTimeout("http://127.0.0.1:8080/vibe_check", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ group_history: buffer }),
+          });
+          const data = await response.json();
+          await sock.sendMessage(senderId, { text: data.response }, { quoted: msg });
+          await sock.sendMessage(senderId, { react: { text: "🌡️", key: msg.key } });
+        } catch (e) { console.error("Vibe Error:", e); }
         return;
       }
 
@@ -1071,25 +1198,58 @@ Welcome! I am your advanced AI companion. Here are the ways you can interact wit
         }
       }
 
-      // 🎨 COMMAND: /imagine (AI Image Generation)
+      // 🎨 COMMAND: /imagine (Enhanced AI Image Generation)
       if (rawText.toLowerCase().startsWith("/imagine ")) {
-        const imagePrompt = rawText.slice(9).trim();
-        const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(
-          imagePrompt
-        )}?width=1024&height=1024&nologo=true`;
+        let input = rawText.slice(9).trim();
+        if (!input) return;
 
-        await sock.sendMessage(
-          senderId,
-          {
-            image: { url: imageUrl },
-            caption: `✨ ye रही आपकी तस्वीर: ${imagePrompt}`,
-          },
-          { quoted: msg }
-        );
-        // Change reaction to artistic palette
-        await sock.sendMessage(senderId, {
-          react: { text: "🎨", key: msg.key },
-        });
+        // Parsing Style and Aspect Ratio if provided: --style anime --ratio 16:9
+        let style = "cinematic";
+        let ratio = "1:1";
+        
+        if (input.includes("--style")) {
+            const parts = input.split("--style");
+            input = parts[0].trim();
+            style = parts[1].trim().split(" ")[0];
+        }
+        if (input.includes("--ratio")) {
+            const parts = input.split("--ratio");
+            input = parts[0].trim();
+            ratio = parts[1].trim().split(" ")[0];
+        }
+
+        await sock.sendMessage(senderId, { react: { text: "🎨", key: msg.key } });
+
+        try {
+          // 🧠 Step 1: AI Prompt Enhancement
+          const response = await fetchWithTimeout("http://127.0.0.1:8080/enhance_prompt", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ prompt: input, style, aspect_ratio: ratio }),
+          });
+          const data = await response.json();
+          const enhancedPrompt = data.enhanced_prompt;
+
+          // Step 2: Image Generation via Pollinations (Flux model)
+          let width = 1024, height = 1024;
+          if (ratio === "16:9") { width = 1280; height = 720; }
+          else if (ratio === "9:16") { width = 720; height = 1280; }
+          else if (ratio === "4:3") { width = 1024; height = 768; }
+
+          const imageUrl = `https://image.pollinations.ai/prompt/${encodeURIComponent(enhancedPrompt)}?width=${width}&height=${height}&model=flux&nologo=true&seed=${Math.floor(Math.random() * 10000)}`;
+
+          await sock.sendMessage(
+            senderId,
+            {
+              image: { url: imageUrl },
+              caption: `🎨 *Artistic Vision:* \n\n*Prompt:* ${input}\n*Style:* ${style}\n\n✨ _Generated using enhanced AI imagination._`,
+            },
+            { quoted: msg }
+          );
+        } catch (e) {
+          console.error("Imagine Error:", e);
+          await sock.sendMessage(senderId, { text: "⚠️ Image generate karne mein thodi mushkil ho rahi hai." }, { quoted: msg });
+        }
         return;
       }
 

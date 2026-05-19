@@ -112,37 +112,45 @@ except Exception as e:
 # --- Agent Setup ---
 agent_executor = None
 try:
-    search_tool = TavilySearch(max_results=5)
+    # Use 'advanced' depth for Tavily to get higher quality research results
+    search_tool = TavilySearch(max_results=8, search_depth="advanced")
     tools = [search_tool]
-    
-    # Local ReAct Prompt
-    template = """Answer the following questions as best you can. You have access to the following tools:
+
+    # Enhanced ReAct Prompt for Deep Research
+    template = """You are the 'Beyond the Verse' Lead Researcher. 
+Your goal is to provide a deep, scientific, and philosophical analysis of the input.
+You have access to the following tools to gather real-time data:
 
 {tools}
 
-Use the following format:
+STRICT WORKFLOW:
+1. Thought: Break down the user's query into logical research steps.
+2. Action: Use search to find multiple perspectives and data points.
+3. Observation: Carefully read the results.
+4. (Repeat if needed) Thought: Synthesize what you've found or identify what's missing.
+5. Final Answer: Provide a comprehensive, structured report in Hinglish/English.
 
-Question: the input question you must answer
-Thought: you should always think about what to do
+Use the following format:
+Question: {input}
+Thought: {agent_scratchpad}
 Action: the action to take, should be one of [{tool_names}]
 Action Input: the input to the action
 Observation: the result of the action
-... (this Thought/Action/Action Input/Observation can repeat N times)
-Thought: I now know the final answer
-Final Answer: the final answer to the original input question
+... (repeat Thought/Action/Action Input/Observation if needed)
+Thought: I now have the deep insights needed.
+Final Answer: The complete research report.
 
-Begin!
+Begin your deep inquiry now!
 
 Question: {input}
-Thought:{agent_scratchpad}"""
+Thought:"""
 
     prompt_template = PromptTemplate.from_template(template)
     agent = create_react_agent(chat_model, tools, prompt_template)
-    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True)
+    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True, max_iterations=10)
 except Exception as e:
     print(f"Error initializing agent: {e}")
     tools = []
-
 class Message(BaseModel):
     role: str
     content: str
@@ -409,12 +417,27 @@ async def process_research(request: ResearchRequest):
         if not agent_executor:
             return {"response": "⚠️ Research agent is not available right now. Please try standard chat instead."}
         
-        agent_prompt = f"""Conduct a deep research on the following topic: "{request.query}"
+        # Check if it's a deep research request
+        is_deep = request.query.lower().startswith("deep")
         
-        Provide a comprehensive, detailed report.
-        Strictly follow WhatsApp formatting (*bold*, _italic_).
-        Tone: Philosophical, Scientific, and Deep.
-        Include sections: *Current Understanding*, *Open Questions*, and *Existential Conclusion*."""
+        if is_deep:
+            agent_prompt = f"""Conduct an exhaustive DEEP RESEARCH on the following topic: "{request.query}"
+            
+            1. Search for historical context and latest developments.
+            2. Analyze scientific data and philosophical implications.
+            3. Compare different viewpoints or schools of thought.
+            
+            Provide a massive, structured report with these sections:
+            - *Summary of Essence*
+            - *Scientific Foundation*
+            - *Philosophical Deconstruction*
+            - *The Future Outlook*
+            - *Deep Conclusion*
+            
+            Use Hinglish/English. Use WhatsApp formatting."""
+        else:
+            agent_prompt = f"""Search and synthesize information about: "{request.query}"
+            Provide a concise yet deep report with *Key Insights* and *Existential Takeaway*."""
         
         result = agent_executor.invoke({"input": agent_prompt})
         return {"response": normalize_agent_response(result)}
@@ -528,6 +551,168 @@ async def process_tts(request: TTSRequest):
     except Exception as e:
         print(f"TTS Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+class MirrorRequest(BaseModel):
+    user_name: str
+    memory_data: List[dict]
+
+@app.post("/mirror")
+async def process_mirror(request: MirrorRequest):
+    try:
+        if not request.memory_data:
+            return {"response": "I haven't observed enough of your reflection yet to show you the mirror. Talk more, and let your truth emerge."}
+        
+        # Consolidate user's memory into a text block
+        user_history = "\n".join([f"User said: {m['content']} at {m['time']}" for m in request.memory_data])
+        
+        mirror_prompt = f"""
+        You are the 'Mirror of Truth' for Beyond the Verse.
+        Below is the recorded memory of what the user '{request.user_name}' has shared or said.
+        
+        DATA:
+        {user_history}
+        
+        TASK:
+        Analyze this data deeply. Don't just summarize. 
+        Provide a 'Psychological Portrait' of this person. 
+        What are their core inquiries? What are they struggling with? What patterns do you see in their mind?
+        Speak directly to them as a wise friend. Be honest, even if it's sharp (Acharya Prashant style), but celebrate their existence (Osho style).
+        
+        FORMAT:
+        *The Mirror of {request.user_name}*
+        1. *Observed Patterns:* (What you see in their mind)
+        2. *The Core Inquiry:* (What they are actually looking for)
+        3. *A Shift in Perspective:* (One deep advice for their growth)
+        
+        Use Hindi/Hinglish as per their usual tone. Use WhatsApp formatting.
+        """
+        
+        result = chat_model.invoke([HumanMessage(content=mirror_prompt)])
+        return {"response": result.content}
+    except Exception as e:
+        print(f"Mirror Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class ShadowRequest(BaseModel):
+    deleted_content: str
+    user_name: str
+
+@app.post("/shadow_insight")
+async def process_shadow(request: ShadowRequest):
+    try:
+        shadow_prompt = f"""
+        You are the 'Shadow Analyst' for Beyond the Verse.
+        The user '{request.user_name}' just deleted this message: "{request.deleted_content}".
+        
+        TASK:
+        Why would someone delete this? What was the fear? What part of their ego or 'Shadow' (Carl Jung) does this reveal?
+        Be sharp, direct, and deep. Don't be polite; be truthful.
+        Expose the 'why' behind the deletion.
+        
+        Format:
+        🌑 *Shadow Insight:* [Your deep analysis]
+        
+        Use Hinglish/Hindi. Keep it under 3-4 lines.
+        """
+        result = chat_model.invoke([HumanMessage(content=shadow_prompt)])
+        return {"response": result.content}
+    except Exception as e:
+        print(f"Shadow Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class DreamRequest(BaseModel):
+    user_name: str
+    dream_text: str
+
+class VibeRequest(BaseModel):
+    group_history: List[str]
+
+@app.post("/dream_analysis")
+async def process_dream(request: DreamRequest):
+    try:
+        dream_prompt = f"""
+        You are 'The Dream Weaver' for Beyond the Verse.
+        The user '{request.user_name}' shared this dream: "{request.dream_text}".
+        
+        TASK:
+        Analyze this dream using Jungian archetypes and the wisdom of Krishnamurti, Osho, and Acharya Prashant. 
+        Don't give 'prophecies' or 'predictions'. 
+        Give 'Psychological Insights'. What part of their mind is speaking? What is the ego trying to hide or reveal?
+        
+        Format:
+        🌙 *Dream Reflection:* [Your deep analysis]
+        ✨ *The Inquiry:* [A question for the dreamer to contemplate]
+        
+        Use Hinglish. Keep it poetic but sharp.
+        """
+        result = chat_model.invoke([HumanMessage(content=dream_prompt)])
+        return {"response": result.content}
+    except Exception as e:
+        print(f"Dream Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/vibe_check")
+async def process_vibe(request: VibeRequest):
+    try:
+        chat_context = "\n".join(request.group_history)
+        vibe_prompt = f"""
+        You are the 'Vibe Architect' for Beyond the Verse.
+        Analyze the current energy of this group based on these messages:
+        {chat_context}
+        
+        TASK:
+        What is the 'Collective Vibe'? Are they in deep inquiry, or just mechanical chatter? Is there tension, or fake politeness? 
+        Give a direct 'Diagnosis' of the group's consciousness right now.
+        
+        Format:
+        🌈 *Collective Energy:* [Diagnosis]
+        🌡️ *Consciousness Level:* [Low/Medium/High/Transcendental]
+        🔥 *Architect's Word:* [One sharp advice for the group]
+        
+        Use Hinglish. Be direct (Acharya Prashant style).
+        """
+        result = chat_model.invoke([HumanMessage(content=vibe_prompt)])
+        return {"response": result.content}
+    except Exception as e:
+        print(f"Vibe Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class ImagineRequest(BaseModel):
+    prompt: str
+    style: Optional[str] = "cinematic"
+    aspect_ratio: Optional[str] = "1:1"
+
+@app.post("/enhance_prompt")
+async def process_enhance_prompt(request: ImagineRequest):
+    try:
+        styles = {
+            "cinematic": "highly detailed, cinematic lighting, 8k resolution, photorealistic, masterpiece, deep shadows",
+            "anime": "vibrant colors, clean lines, high quality anime style, studio ghibli aesthetic",
+            "cyberpunk": "neon lights, futuristic, rainy night, high tech, glowing elements, synthwave aesthetic",
+            "abstract": "complex patterns, philosophical representation, surrealism, ethereal, non-literal",
+            "cosmic": "nebula patterns, stardust, galaxy background, mystical, vastness of space"
+        }
+        
+        selected_style = styles.get(request.style.lower(), styles["cinematic"])
+        
+        enhancer_prompt = f"""
+        You are an 'AI Art Prompt Architect'.
+        The user wants an image of: "{request.prompt}"
+        The style is: "{request.style}" ({selected_style})
+        
+        TASK:
+        Expand this simple prompt into a highly detailed, professional generative AI prompt.
+        Include details about lighting, textures, composition, and mood.
+        Make it poetic and visually rich.
+        
+        ONLY return the final enhanced prompt in English. No other text.
+        """
+        
+        result = chat_model.invoke([HumanMessage(content=enhancer_prompt)])
+        return {"enhanced_prompt": result.content.strip()}
+    except Exception as e:
+        print(f"Prompt Enhancement Error: {e}")
+        return {"enhanced_prompt": f"{request.prompt}, {selected_style}"} # Fallback
+
 @app.get("/fact")
 async def process_fact():
     try:
