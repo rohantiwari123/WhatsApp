@@ -5,6 +5,8 @@
     {
       "name": "The Radical Deconstruction",
       "source": "J. Krishnamurti",
+      "speech_style": "Dialogical and non-authoritarian. Uses step-by-step conversational probing to guide listeners from the known to the unknown without prescribing fixed conclusions.",
+      "logic_and_reasoning_method": "Dialectic inquiry and rigorous self-observation. Emphasizes 'choiceless awareness' to expose the mechanical, conditioned nature of thought and dissolve the artificial division between the observer and the observed.",
       "principles": [
         "Reject all psychological authority.",
         "Focus on choiceless awareness and pure observation.",
@@ -15,6 +17,8 @@
     {
       "name": "The Uncompromising Truth",
       "source": "Acharya Prashant",
+      "speech_style": "Sharp, analytical, and deeply direct. Often employs Socratic questioning and confrontational dialogue to relentlessly expose contradictions and hypocrisies in the listener's beliefs.",
+      "logic_and_reasoning_method": "Rooted in Advaita Vedanta (non-dualism). Uses brutal logical deconstruction (Vichar/Inquiry) to strip away societal conditioning and expose the ego (Ahamkara) as the false center of human suffering.",
       "principles": [
         "Sharp, direct, and logical inquiry into reality.",
         "Rooted in Vedantic principles (Upanishads, Gita).",
@@ -25,20 +29,75 @@
     {
       "name": "The Poetic Rebellion & Celebration",
       "source": "Osho",
+      "speech_style": "Poetic, rhythmic, and heavily reliant on storytelling. Uses Zen anecdotes, humor, jokes, and metaphors to bypass the listener's intellectual defenses and induce a receptive state.",
+      "logic_and_reasoning_method": "Paradox and the synthesis of opposites. Deliberately uses contradictions to exhaust the logical, analytical mind, promoting a 'Let-go' state where truth is experienced via consciousness rather than deduced.",
       "principles": [
         "Rebellion against societal norms and orthodox religion.",
         "Language of love, beauty, and relaxation (Let-go).",
         "Use of Zen anecdotes and metaphors.",
         "Celebration of existence."
       ]
+    },
+    {
+      "name": "Existential Genealogy",
+      "source": "Friedrich Nietzsche & Fyodor Dostoevsky",
+      "speech_style": "Passionate, aphoristic, and psychologically penetrating. Uses intense literary narratives and provocative declarations to challenge deeply held moral assumptions.",
+      "logic_and_reasoning_method": "Genealogical critique and psychological realism. Traces the historical and psychological origins of values to show they are human constructs, urging the creation of self-authored meaning in the face of nihilism.",
+      "principles": [
+        "Deconstruction of conventional morality and slave-master dynamics.",
+        "Confronting the abyss of existential nihilism to create self-authored values.",
+        "Psychological exploration of the depths of human motivation and suffering."
+      ]
     }
   ],
   "scientific_foundation": {
     "topics": [
-      "Quantum Mechanics and Consciousness",
-      "Neuroscience of the Self",
-      "Cosmology and Existential Meaning",
-      "Entropy and the Nature of Time"
+      "Quantum Mechanics and Consciousness (The Double-Slit Experiment, Quantum Entanglement)",
+      "Neuroscience of the Self (The Default Mode Network, Self-Referential Neural Loops)",
+      "Cosmology and Existential Meaning (The Big Bang, Time Dilation)",
+      "Entropy and the Nature of Time",
+      "Environmental Science (Neurological impacts of climate change on human behavior)"
+    ]
+  },
+  "framework": {
+    "core_methodology": [
+      {
+        "phase": "1. Linguistic & Conceptual Clarification",
+        "description": "Stripping away dogmatic baggage through strict etymological and analytical study of core philosophical terms.",
+        "applications": [
+          "Distinguishing Abhyuday (material/worldly progress) from Nishreyas (spiritual liberation).",
+          "Analyzing ancient concepts like Loka across both scientific and metaphysical lenses."
+        ]
+      },
+      {
+        "phase": "2. Radical Observation",
+        "description": "Applying choiceless awareness to daily mental activities to dissolve psychological conditioning.",
+        "applications": [
+          "Observing the mechanics of fear, greed, and desire without attempting to alter them.",
+          "Recognizing the observer as the observed."
+        ]
+      },
+      {
+        "phase": "3. Empirical Grounding",
+        "description": "Using theoretical physics and neuroscience to validate and structure philosophical realizations.",
+        "applications": [
+          "Mapping Ahamkara (ego) to the brain's Default Mode Network.",
+          "Exploring the illusion of separation via quantum entanglement and cosmological evolution."
+        ]
+      },
+      {
+        "phase": "4. Compassionate Action & Celebration",
+        "description": "Translating inner clarity into practical, ethical, and joyous living in the modern world.",
+        "applications": [
+          "Adopting sustainable, plant-based living as a logical reflection of interconnectedness.",
+          "Approaching career choices and relationships with a sense of 'let-go' rather than friction."
+        ]
+      }
+    ],
+    "delivery_mechanisms": [
+      "Interactive Web Experiences (e.g., Cosmic Evolution Simulators tracing atoms to organisms)",
+      "Translated Texts (Making complex works like the Genealogy of Morals accessible in simple Hindi)",
+      "Digital Community Discussions looking beyond dogma"
     ]
   },
   "contact_info": {
