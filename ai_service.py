@@ -488,19 +488,38 @@ async def process_tts(request: TTSRequest):
         import edge_tts
         import uuid
         from fastapi.responses import FileResponse
+        import re
 
         file_id = str(uuid.uuid4())
         mp3_filename = os.path.join(DOWNLOADS_DIR, f"{file_id}.mp3")
         ogg_filename = os.path.join(DOWNLOADS_DIR, f"{file_id}.ogg")
 
-        # Use Microsoft Edge Neural Voice for more human-like sound
-        # hi-IN-MadhurNeural (Male) or hi-IN-SwaraNeural (Female)
         VOICE = "hi-IN-MadhurNeural"
 
-        communicate = edge_tts.Communicate(request.text, VOICE)
+        # --- ENHANCED RHYTHM LOGIC (SSML) ---
+        # Adding pauses to simulate breathing and thinking
+        text = request.text
+        text = text.replace("...", " <break time='800ms'/> ")
+        text = text.replace(".", ". <break time='600ms'/> ")
+        text = text.replace(",", ", <break time='250ms'/> ")
+        text = text.replace("?", "? <break time='700ms'/> ")
+        text = text.replace("!", "! <break time='500ms'/> ")
+
+        # Weaving the text into SSML for better prosody
+        ssml = f"""
+        <speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xml:lang="hi-IN">
+            <voice name="{VOICE}">
+                <prosody rate="-15%" pitch="-3Hz">
+                    {text}
+                </prosody>
+            </voice>
+        </speak>
+        """
+
+        communicate = edge_tts.Communicate(ssml, VOICE)
         await communicate.save(mp3_filename)
 
-        # Convert to OGG Opus for native WhatsApp voice note support with HD quality
+        # Convert to OGG Opus for native WhatsApp voice note support
         try:
             subprocess.run([
                 "ffmpeg", "-i", mp3_filename,
@@ -508,23 +527,21 @@ async def process_tts(request: TTSRequest):
                 "-b:a", "128k",
                 "-vbr", "on",
                 "-compression_level", "10",
-                "-page_duration", "20000", # Helps with seeking/duration
+                "-page_duration", "20000",
                 ogg_filename, "-y"
             ], check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-            # Clean up mp3
             if os.path.exists(mp3_filename):
                 os.remove(mp3_filename)
 
             return FileResponse(ogg_filename, media_type="audio/ogg")
         except Exception as conv_error:
             print(f"Conversion Error: {conv_error}")
-            return FileResponse(mp3_filename, media_type="audio/mpeg") # Fallback
+            return FileResponse(mp3_filename, media_type="audio/mpeg")
 
     except Exception as e:
         print(f"TTS Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-
 @app.get("/fact")
 async def process_fact():
     try:
