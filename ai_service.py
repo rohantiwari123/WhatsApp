@@ -125,6 +125,12 @@ Gather data using search, synthesize it, and provide a massive report.
 
 {tools}
 
+CRITICAL FORMATTING RULES:
+1. NEVER use double stars (**) for bold. 
+2. ALWAYS use a single star (*) for bold: *text*.
+3. Use a single star (*) for bullet points.
+4. NEVER use ### or other markdown headers.
+
 STRICT WORKFLOW:
 1. Thought: Break down query into steps.
 2. Action: Use search for data.
@@ -335,11 +341,12 @@ You must base your wisdom STRICTLY on the following data, but express it as your
 
 # BEHAVIOR & CONSTRAINTS
 1. If the information isn't in the WISDOM CORE, do not guess. Simply say: "_क्षमा करें, मेरे पास अभी इसकी सटीक जानकारी नहीं है।_"
-2. WHATSAPP FORMATTING:
-   - Use *text* for bold (Headings/Key terms).
+2. CRITICAL WHATSAPP FORMATTING:
+   - NEVER use double stars (**). It is forbidden.
+   - ALWAYS use a single star (*) for bold: *text*.
+   - Use a single star (*) for bulleted lists.
    - Use _text_ for italics.
-   - Use * for bulleted lists.
-   - NO standard markdown like ** or ###.
+   - NEVER use standard markdown like ** or ###.
 3. Keep paragraphs short and well-paced. Avoid generic AI formatting (no "Here is the information:").
 
 Talk like a wise friend sitting across from the user. Process their input now.
@@ -435,10 +442,19 @@ async def process_research(request: ResearchRequest):
             - *The Future Outlook*
             - *Deep Conclusion*
             
-            Use Hinglish/English. Use WhatsApp formatting."""
+            CRITICAL FORMATTING:
+            - NEVER use double stars (**). 
+            - ALWAYS use single star (*) for bold.
+            - Use single star (*) for bullets.
+            
+            Use Hinglish/English."""
         else:
             agent_prompt = f"""Search and synthesize information about: "{request.query}"
-            Provide a concise yet deep report with *Key Insights* and *Existential Takeaway*."""
+            Provide a concise yet deep report with *Key Insights* and *Existential Takeaway*.
+            
+            CRITICAL FORMATTING:
+            - NEVER use double stars (**).
+            - ALWAYS use single star (*) for bold."""
         
         result = agent_executor.invoke({"input": agent_prompt})
         return {"response": normalize_agent_response(result)}
@@ -471,10 +487,10 @@ async def process_summarize(request: SummarizeRequest):
         Format as:
         *Title of the Content*
         *Philosophical Core:* (The essence of the article)
-        *Key Insights:* (Bullet points)
+        *Key Insights:* (Bullet points using *)
         *Existential Takeaway:* (A deep concluding thought)
         
-        Use WhatsApp formatting rules."""
+        CRITICAL: NEVER use **. ALWAYS use * for bold and bullets."""
 
         result = chat_model.invoke([HumanMessage(content=summary_prompt)])
         return {"response": result.content}
@@ -488,7 +504,7 @@ async def process_news(request: NewsRequest):
         if not agent_executor:
             return {"response": "⚠️ News agent is not available right now."}
         
-        agent_prompt = f"Fetch the latest news and updates about: '{request.topic}'. Summarize the top 3-5 key points concisely. Strictly follow WhatsApp formatting (*bold*, _italic_)."
+        agent_prompt = f"Fetch latest news about: '{request.topic}'. Summarize key points using * for bullets and *bold* for terms. NEVER use **."
         
         result = agent_executor.invoke({"input": agent_prompt})
         return {"response": normalize_agent_response(result)}
@@ -499,7 +515,7 @@ async def process_news(request: NewsRequest):
 @app.post("/quiz")
 async def process_quiz(request: QuizRequest):
     try:
-        quiz_prompt = f"Create a short, interactive multiple-choice quiz (3 questions) about '{request.topic}'. Include the correct answers at the very end. Follow WhatsApp formatting (*bold*, _italic_)."
+        quiz_prompt = f"Create a short, interactive multiple-choice quiz (3 questions) about '{request.topic}'. Use *text* for bold. NEVER use **. Include answers at the end."
         result = chat_model.invoke([HumanMessage(content=quiz_prompt)])
         return {"response": result.content}
     except Exception as e:
@@ -575,8 +591,11 @@ async def process_mirror(request: MirrorRequest):
         TASK:
         Analyze this data deeply. Don't just summarize. 
         Provide a 'Psychological Portrait' of this person. 
-        What are their core inquiries? What are they struggling with? What patterns do you see in their mind?
-        Speak directly to them as a wise friend. Be honest, even if it's sharp (Acharya Prashant style), but celebrate their existence (Osho style).
+        
+        CRITICAL FORMATTING:
+        - NEVER use double stars (**). 
+        - ALWAYS use single star (*) for bold.
+        - Use single star (*) for bullets.
         
         FORMAT:
         *The Mirror of {request.user_name}*
@@ -584,7 +603,7 @@ async def process_mirror(request: MirrorRequest):
         2. *The Core Inquiry:* (What they are actually looking for)
         3. *A Shift in Perspective:* (One deep advice for their growth)
         
-        Use Hindi/Hinglish as per their usual tone. Use WhatsApp formatting.
+        Use Hindi/Hinglish.
         """
         
         result = chat_model.invoke([HumanMessage(content=mirror_prompt)])
@@ -605,9 +624,11 @@ async def process_shadow(request: ShadowRequest):
         The user '{request.user_name}' just deleted this message: "{request.deleted_content}".
         
         TASK:
-        Why would someone delete this? What was the fear? What part of their ego or 'Shadow' (Carl Jung) does this reveal?
-        Be sharp, direct, and deep. Don't be polite; be truthful.
-        Expose the 'why' behind the deletion.
+        Expose the 'why' behind the deletion. Be sharp and direct.
+        
+        CRITICAL FORMATTING:
+        - NEVER use double stars (**). 
+        - ALWAYS use single star (*) for bold.
         
         Format:
         🌑 *Shadow Insight:* [Your deep analysis]
@@ -635,9 +656,11 @@ async def process_dream(request: DreamRequest):
         The user '{request.user_name}' shared this dream: "{request.dream_text}".
         
         TASK:
-        Analyze this dream using Jungian archetypes and the wisdom of Krishnamurti, Osho, and Acharya Prashant. 
-        Don't give 'prophecies' or 'predictions'. 
-        Give 'Psychological Insights'. What part of their mind is speaking? What is the ego trying to hide or reveal?
+        Analyze this dream. 
+        
+        CRITICAL FORMATTING:
+        - NEVER use double stars (**). 
+        - ALWAYS use single star (*) for bold.
         
         Format:
         🌙 *Dream Reflection:* [Your deep analysis]
@@ -660,16 +683,16 @@ async def process_vibe(request: VibeRequest):
         Analyze the current energy of this group based on these messages:
         {chat_context}
         
-        TASK:
-        What is the 'Collective Vibe'? Are they in deep inquiry, or just mechanical chatter? Is there tension, or fake politeness? 
-        Give a direct 'Diagnosis' of the group's consciousness right now.
+        CRITICAL FORMATTING:
+        - NEVER use double stars (**). 
+        - ALWAYS use single star (*) for bold.
         
         Format:
         🌈 *Collective Energy:* [Diagnosis]
         🌡️ *Consciousness Level:* [Low/Medium/High/Transcendental]
         🔥 *Architect's Word:* [One sharp advice for the group]
         
-        Use Hinglish. Be direct (Acharya Prashant style).
+        Use Hinglish. Be direct.
         """
         result = chat_model.invoke([HumanMessage(content=vibe_prompt)])
         return {"response": result.content}
@@ -717,7 +740,7 @@ async def process_enhance_prompt(request: ImagineRequest):
 @app.get("/fact")
 async def process_fact():
     try:
-        fact_prompt = "Provide one extremely deep, scientifically accurate, and philosophically profound fact about the universe or consciousness. Strictly follow WhatsApp formatting (*bold*, _italic_)."
+        fact_prompt = "Provide one extremely deep, scientifically accurate, and philosophically profound fact. CRITICAL: NEVER use **. ALWAYS use * for bold and bullets."
         result = chat_model.invoke([HumanMessage(content=fact_prompt)])
         return {"response": result.content}
     except Exception as e:
@@ -728,14 +751,15 @@ async def process_fact():
 async def process_group_summary(request: GroupSummaryRequest):
     try:
         chat_history = "\n".join(request.messages)
-        summary_prompt = f"""You are 'Beyond the Verse' AI. Below is a transcript of a WhatsApp group chat. 
-        Provide a concise, deep, and slightly philosophical summary of what was discussed. 
-        Identify the main 'vibe' of the conversation and any key insights shared.
+        summary_prompt = f"""You are 'Beyond the Verse' AI. Analyze this transcript.
+        Provide a concise summary.
         
         Transcript:
         {chat_history}
         
-        Strictly follow WhatsApp formatting (*bold*, _italic_)."""
+        CRITICAL FORMATTING:
+        - NEVER use **.
+        - ALWAYS use * for bold and bullets."""
         
         result = chat_model.invoke([HumanMessage(content=summary_prompt)])
         return {"response": result.content}
@@ -789,7 +813,9 @@ async def process_read_pdf(request: PDFRequest):
         USER INQUIRY:
         {prompt}
         
-        Provide a profound, structured response using WhatsApp formatting."""
+        CRITICAL FORMATTING:
+        - NEVER use **.
+        - ALWAYS use * for bold and bullets."""
         
         result = chat_model.invoke([HumanMessage(content=pdf_prompt)])
         return {"response": result.content}
